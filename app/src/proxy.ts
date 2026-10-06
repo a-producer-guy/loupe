@@ -5,9 +5,10 @@ import { AUTH_COOKIE_OPTIONS } from "@/lib/supabase/cookies";
 
 // Runs before every page. Each page view gets a fresh nonce and the Content-Security-Policy built
 // on it (Next.js stamps the nonce on its own scripts, so only those run). On every page except
-// sign-in, it also keeps the sign-in session fresh and sends signed-out visitors to /login. API
-// routes aren't matched here: they check sign-in themselves, and every page checks team
-// membership too.
+// sign-in and the public landing page (/), it also keeps the sign-in session fresh and sends
+// signed-out visitors to /login. API
+// routes aren't matched here: they check sign-in themselves, and every page and route checks the
+// scene is in the signed-in account too.
 
 type Cookie = { name: string; value: string; options: Parameters<NextResponse["cookies"]["set"]>[2] };
 
@@ -20,13 +21,14 @@ export async function proxy(request: NextRequest) {
   });
 
   const path = request.nextUrl.pathname;
-  const signInPage = path === "/login" || path.startsWith("/auth/");
+  // The landing page and sign-in are for everyone; every other page needs signing in.
+  const publicPage = path === "/" || path === "/login" || path.startsWith("/auth/");
   // Local testing only; see currentEmail() in lib/auth.ts.
   const devSignIn = process.env.NODE_ENV === "development" && Boolean(process.env.DEV_SIGN_IN_AS);
   const refreshed: Cookie[] = [];
   const extraHeaders: Record<string, string> = {};
 
-  if (!signInPage && !devSignIn) {
+  if (!publicPage && !devSignIn) {
     const supabase = createServerClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
       cookieOptions: AUTH_COOKIE_OPTIONS,
       cookies: {

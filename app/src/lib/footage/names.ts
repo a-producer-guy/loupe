@@ -201,3 +201,6 @@ export function timecodeAt(start: string | undefined, fps: string | undefined, s
   const totalSeconds = Math.floor(frames / nominal);
   return `${pad(Math.floor(totalSeconds / 3600))}:${pad(Math.floor(totalSeconds / 60) % 60)}:${pad(totalSeconds % 60)}${drop ? ";" : ":"}${pad(frames % nominal)}`;
 }
+
+/** Every scene in an account, newest first: scenes are dated by their shoot day. */
+export const ALL_SCENES = { from: "2000-01-01", to: "2100-01-01" };

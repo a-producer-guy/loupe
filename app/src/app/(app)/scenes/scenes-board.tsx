@@ -9,12 +9,9 @@ import { Loupe } from "@/components/loupe/loupe";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { useViewMode, ViewToggle, type ViewMode } from "@/components/ui/view-toggle";
-import { formatBytes, searchWords, shootSearchText } from "@/lib/footage/names";
+import { ALL_SCENES, formatBytes, searchWords, shootSearchText } from "@/lib/footage/names";
 import type { ShootSummary } from "@/lib/footage/status";
 import { usePolling, useShootSearch, useUploadsOverview } from "@/lib/hooks";
-
-/** Every scene in the account, newest first: scenes are dated by their shoot day. */
-export const ALL_SCENES = { from: "2000-01-01", to: "2100-01-01" };
 
 export function ScenesBoard({ initial }: { initial: ShootSummary[] }) {
   const [scenes, refresh] = usePolling(`/api/shoots?from=${ALL_SCENES.from}&to=${ALL_SCENES.to}`, "shoots", initial);

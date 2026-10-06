@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         has: [{ type: "host", value: "(?<vercel>.+)\\.vercel\\.app" }],
-        destination: `${process.env.APP_URL ?? "https://footage.reelarc.com"}/:path*`,
+        destination: `${process.env.APP_URL ?? "https://loupe.reelarc.com"}/:path*`,
         permanent: false,
       },
     ];
