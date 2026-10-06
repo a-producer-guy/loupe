@@ -2,6 +2,7 @@
 //
 //   MIGRATION_DATABASE_URL='<that project's postgres connection>' npm run db:migrate
 //   npm run db:migrate -- --admin-env <file with DATABASE_URL=...>   (the same, read from a file)
+//   npm run db:migrate   (asks for it, hidden, and for the password if the string has [YOUR-PASSWORD])
 //   npm run db:migrate -- --check   (look only, change nothing)
 //
 // Prints exactly what will run and waits for "yes". It only adds loupe_
@@ -72,9 +73,43 @@ async function confirm(question: string): Promise<boolean> {
   return answer.trim().toLowerCase() === "yes";
 }
 
+/** Asks in the terminal without showing what's typed or pasted. */
+function askHidden(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+    const input = process.stdin;
+    let answer = "";
+    input.setEncoding("utf8");
+    if (input.isTTY) input.setRawMode(true);
+    input.resume();
+    const onData = (chunk: string) => {
+      for (const char of chunk) {
+        if (char === "\r" || char === "\n") {
+          input.off("data", onData);
+          if (input.isTTY) input.setRawMode(false);
+          input.pause();
+          process.stdout.write("\n");
+          return resolve(answer.trim());
+        }
+        if (char === "\u0003") process.exit(1); // Ctrl-C
+        if (char === "\u007f" || char === "\b") answer = answer.slice(0, -1);
+        else answer += char;
+      }
+    };
+    input.on("data", onData);
+  });
+}
+
 async function main() {
   const adminEnv = option("--admin-env");
-  const raw = process.env.MIGRATION_DATABASE_URL || (adminEnv ? readEnvValue(path.resolve(adminEnv), "DATABASE_URL") : undefined);
+  let raw = process.env.MIGRATION_DATABASE_URL || (adminEnv ? readEnvValue(path.resolve(adminEnv), "DATABASE_URL") : undefined);
+  if (!raw && process.stdin.isTTY) {
+    console.log("In Loupe's Supabase project: Connect (top of the page) → Session pooler → copy the URI.");
+    raw = await askHidden("Paste it here (it stays hidden): ");
+  }
+  if (raw?.includes("[YOUR-PASSWORD]")) {
+    raw = raw.replace("[YOUR-PASSWORD]", encodeURIComponent(await askHidden("The database password you chose when making the project (hidden): ")));
+  }
   if (!raw) throw new Error("Point me at Loupe's Supabase project's database: set MIGRATION_DATABASE_URL, or --admin-env <file>.");
   const adminUrl = normalizeDatabaseUrl(raw, "session");
   const host = new URL(adminUrl).hostname;
