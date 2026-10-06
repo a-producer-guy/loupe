@@ -1,0 +1,15 @@
+# Fly.io settings for the proxy worker (only needed if we host it on Fly).
+# Deploy from this folder with: fly deploy
+app = "reelarc-footage-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Time to hand jobs back to the queue before the machine stops.
+kill_signal = "SIGTERM"
+kill_timeout = 30
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

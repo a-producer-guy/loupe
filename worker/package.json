@@ -1,0 +1,30 @@
+{
+  "name": "reelarc-footage-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns uploaded camera clips into ProRes 422 Proxy files for Premiere.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "samples": "tsx test/make-samples.ts",
+    "local": "node --env-file=.env dist/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1138.0",
+    "@aws-sdk/lib-storage": "^3.1138.0",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "ffmpeg-ffprobe-static": "^6.1.2-rc.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

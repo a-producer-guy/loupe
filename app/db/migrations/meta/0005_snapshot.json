@@ -1,0 +1,911 @@
+{
+  "id": "894f7f0a-3993-4df1-a4f8-93c5297fe4b3",
+  "prevId": "a31b0ca0-82ce-45dc-92f5-1e18ae96da92",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.footage_card_luts": {
+      "name": "footage_card_luts",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "card": {
+          "name": "card",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lut_id": {
+          "name": "lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "footage_card_luts_project_id_footage_projects_id_fk": {
+          "name": "footage_card_luts_project_id_footage_projects_id_fk",
+          "tableFrom": "footage_card_luts",
+          "tableTo": "footage_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "footage_card_luts_lut_id_footage_luts_id_fk": {
+          "name": "footage_card_luts_lut_id_footage_luts_id_fk",
+          "tableFrom": "footage_card_luts",
+          "tableTo": "footage_luts",
+          "columnsFrom": [
+            "lut_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "footage_card_luts_project_id_card_pk": {
+          "name": "footage_card_luts_project_id_card_pk",
+          "columns": [
+            "project_id",
+            "card"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.footage_files": {
+      "name": "footage_files",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "footage_files_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "card": {
+          "name": "card",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_modified_ms": {
+          "name": "last_modified_ms",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_video": {
+          "name": "is_video",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "problem": {
+          "name": "problem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "upload_id": {
+          "name": "upload_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_at": {
+          "name": "uploaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "footage_files_project_path_idx": {
+          "name": "footage_files_project_path_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "footage_files_project_card_idx": {
+          "name": "footage_files_project_card_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "card",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "footage_files_project_id_footage_projects_id_fk": {
+          "name": "footage_files_project_id_footage_projects_id_fk",
+          "tableFrom": "footage_files",
+          "tableTo": "footage_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "footage_files_storage_key_unique": {
+          "name": "footage_files_storage_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "storage_key"
+          ]
+        }
+      },
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {
+        "footage_files_status_valid": {
+          "name": "footage_files_status_valid",
+          "value": "\"footage_files\".\"status\" in ('pending', 'uploading', 'uploaded', 'unreadable')"
+        },
+        "footage_files_size_valid": {
+          "name": "footage_files_size_valid",
+          "value": "\"footage_files\".\"size_bytes\" >= 0"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.footage_luts": {
+      "name": "footage_luts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "footage_luts_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cube_size": {
+          "name": "cube_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "footage_luts_storage_key_unique": {
+          "name": "footage_luts_storage_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "storage_key"
+          ]
+        }
+      },
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.footage_members": {
+      "name": "footage_members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "footage_members_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admin'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "footage_members_email_unique": {
+          "name": "footage_members_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {
+        "footage_members_email_lowercase": {
+          "name": "footage_members_email_lowercase",
+          "value": "\"footage_members\".\"email\" = lower(\"footage_members\".\"email\")"
+        },
+        "footage_members_role_valid": {
+          "name": "footage_members_role_valid",
+          "value": "\"footage_members\".\"role\" in ('admin', 'editor', 'social')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.footage_projects": {
+      "name": "footage_projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "footage_projects_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1001",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shoot_date": {
+          "name": "shoot_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_prefix": {
+          "name": "storage_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'scheduled'"
+        },
+        "uploaded_at": {
+          "name": "uploaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lut_id": {
+          "name": "lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dp_name": {
+          "name": "dp_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "footage_projects_shoot_date_idx": {
+          "name": "footage_projects_shoot_date_idx",
+          "columns": [
+            {
+              "expression": "shoot_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "footage_projects_lut_id_footage_luts_id_fk": {
+          "name": "footage_projects_lut_id_footage_luts_id_fk",
+          "tableFrom": "footage_projects",
+          "tableTo": "footage_luts",
+          "columnsFrom": [
+            "lut_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "footage_projects_storage_prefix_unique": {
+          "name": "footage_projects_storage_prefix_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "storage_prefix"
+          ]
+        }
+      },
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {
+        "footage_projects_status_valid": {
+          "name": "footage_projects_status_valid",
+          "value": "\"footage_projects\".\"status\" in ('scheduled', 'uploading', 'uploaded', 'delivered', 'purged')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.footage_proxy_jobs": {
+      "name": "footage_proxy_jobs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "footage_proxy_jobs_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_key": {
+          "name": "raw_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proxy_key": {
+          "name": "proxy_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "max_attempts": {
+          "name": "max_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 4
+        },
+        "run_after": {
+          "name": "run_after",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "locked_by": {
+          "name": "locked_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked_at": {
+          "name": "locked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "progress": {
+          "name": "progress",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "proxy_size_bytes": {
+          "name": "proxy_size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preview_size_bytes": {
+          "name": "preview_size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "media": {
+          "name": "media",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lut_id": {
+          "name": "lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "made_with_lut_id": {
+          "name": "made_with_lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "footage_proxy_jobs_queue_idx": {
+          "name": "footage_proxy_jobs_queue_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "run_after",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "footage_proxy_jobs_project_idx": {
+          "name": "footage_proxy_jobs_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "footage_proxy_jobs_file_id_footage_files_id_fk": {
+          "name": "footage_proxy_jobs_file_id_footage_files_id_fk",
+          "tableFrom": "footage_proxy_jobs",
+          "tableTo": "footage_files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "footage_proxy_jobs_project_id_footage_projects_id_fk": {
+          "name": "footage_proxy_jobs_project_id_footage_projects_id_fk",
+          "tableFrom": "footage_proxy_jobs",
+          "tableTo": "footage_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "footage_proxy_jobs_lut_id_footage_luts_id_fk": {
+          "name": "footage_proxy_jobs_lut_id_footage_luts_id_fk",
+          "tableFrom": "footage_proxy_jobs",
+          "tableTo": "footage_luts",
+          "columnsFrom": [
+            "lut_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "footage_proxy_jobs_file_id_unique": {
+          "name": "footage_proxy_jobs_file_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "file_id"
+          ]
+        },
+        "footage_proxy_jobs_proxy_key_unique": {
+          "name": "footage_proxy_jobs_proxy_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "proxy_key"
+          ]
+        }
+      },
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {
+        "footage_proxy_jobs_status_valid": {
+          "name": "footage_proxy_jobs_status_valid",
+          "value": "\"footage_proxy_jobs\".\"status\" in ('queued', 'running', 'done', 'failed', 'skipped')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.footage_sign_in_attempts": {
+      "name": "footage_sign_in_attempts",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "failures": {
+          "name": "failures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "footage_app_all": {
+          "name": "footage_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "footage_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -1,0 +1,27 @@
+# Secrets: never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local tooling
+.DS_Store
+.vercel/
+.claude/settings.local.json
+.claude/launch.json
+npm-debug.log*
+coverage/
+
+# Worker scratch space and generated test clips
+worker/.work/
+worker/test/samples/

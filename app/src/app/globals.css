@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/*
+ * Frame.io-style layered dark UI (cool slate surfaces, hairline borders,
+ * compact type), with Reelarc's pink as the one accent color.
+ */
+:root {
+  --bg: #0e1016;
+  --rail: #08090d;
+  --panel: #12141b;
+  --surface: #181b24;
+  --surface-2: #1f232e;
+  --surface-3: #292d3a;
+  --text: #f2f3f6;
+  --muted: #9ba1b0;
+  --faint: #6a7080;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --pink: #ff3d8a;
+  --pink-hover: #ff5b9d;
+  --pink-soft: rgba(255, 61, 138, 0.14);
+  --good: #3ecf8e;
+  --good-soft: rgba(62, 207, 142, 0.13);
+  --warn: #f5b544;
+  --warn-soft: rgba(245, 181, 68, 0.13);
+  --bad: #ff5c6c;
+  --bad-soft: rgba(255, 92, 108, 0.13);
+  --info: #7aa2ff;
+  --info-soft: rgba(122, 162, 255, 0.14);
+}
+
+@theme inline {
+  --font-sans: var(--font-degular), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-bg: var(--bg);
+  --color-rail: var(--rail);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-pink: var(--pink);
+  --color-pink-hover: var(--pink-hover);
+  --color-pink-soft: var(--pink-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --animate-pop: pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+  --animate-rise: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-toast: toast-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+  --animate-shake: shake 360ms ease-in-out;
+  --animate-dash: dash 900ms linear infinite;
+  --animate-glow: glow 1.8s ease-out 1;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes rise {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes toast-in {
+  from { transform: translateY(-10px) scale(0.97); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: none; }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+@keyframes dash {
+  to { stroke-dashoffset: -28; }
+}
+@keyframes glow {
+  0% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.5); }
+  100% { box-shadow: 0 0 0 18px rgba(62, 207, 142, 0); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+html {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+::selection {
+  background: var(--pink);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
+}
+
+/* Skeleton blocks while the first data loads. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Stripes on bars that are working but can't show a percentage yet. */
+@keyframes stripes {
+  from { background-position: 0 0; }
+  to { background-position: 28px 0; }
+}
+.bar-busy {
+  background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.18) 0 7px, transparent 7px 14px);
+  animation: stripes 0.9s linear infinite;
+}
+
+/* Thin, quiet scrollbars like Frame.io's panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

@@ -1,0 +1,74 @@
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { apiMember } from "@/lib/auth";
+import { getDb } from "@/lib/db/client";
+import { files, projects, proxyJobs } from "@/lib/db/schema";
+import { jsonError, readJson, route, shootIdFrom } from "@/lib/api";
+import { lutFileName, lutsUsedBy } from "@/lib/footage/luts";
+import { signDownload } from "@/lib/storage";
+
+// Everything in the shoot that can be downloaded right now, laid out the way
+// it sits in B2 (Raw/..., Proxies/...), so Premiere relinks after download,
+// plus the shoot's LUTs in LUTs/ for applying the same look to the originals.
+
+export const GET = route(async (_request, ctx: RouteContext<"/api/shoots/[id]/downloads">) => {
+  const member = await apiMember("admin");
+  if (member instanceof Response) return member;
+  const id = await shootIdFrom(ctx.params);
+  const db = getDb();
+  const [shoot] = id ? await db.select().from(projects).where(eq(projects.id, id)) : [];
+  if (!shoot) return jsonError(404, "That shoot doesn't exist.");
+
+  const raw = await db
+    .select({ id: files.id, path: files.path, size: files.sizeBytes })
+    .from(files)
+    .where(and(eq(files.projectId, shoot.id), eq(files.status, "uploaded")))
+    .orderBy(files.path);
+  const proxies = await db
+    .select({ id: proxyJobs.id, key: proxyJobs.proxyKey, size: proxyJobs.proxySizeBytes })
+    .from(proxyJobs)
+    .where(and(eq(proxyJobs.projectId, shoot.id), eq(proxyJobs.status, "done")))
+    .orderBy(proxyJobs.proxyKey);
+
+  const looks = await lutsUsedBy(db, shoot.id);
+
+  const inFolder = (key: string) => key.slice(shoot.storagePrefix.length + 1);
+  return Response.json({
+    folder: shoot.storagePrefix,
+    files: [
+      ...raw.map((f) => ({ kind: "raw" as const, id: f.id, path: f.path, size: f.size })),
+      ...proxies.map((p) => ({ kind: "proxy" as const, id: p.id, path: inFolder(p.key), size: p.size ?? 0 })),
+      ...looks.map((l) => ({ kind: "lut" as const, id: l.id, path: `LUTs/${lutFileName(l)}`, size: l.sizeBytes })),
+    ],
+  });
+});
+
+const LinkRequest = z.object({ kind: z.enum(["raw", "proxy", "lut"]), id: z.number().int().positive() });
+
+/** A fresh download link for one file, made at the moment it's needed. */
+export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/downloads">) => {
+  const member = await apiMember("admin");
+  if (member instanceof Response) return member;
+  const id = await shootIdFrom(ctx.params);
+  if (!id) return jsonError(404, "That shoot doesn't exist.");
+  const body = await readJson(request, LinkRequest);
+  if (body instanceof Response) return body;
+  const db = getDb();
+  if (body.kind === "lut") {
+    const lut = (await lutsUsedBy(db, id)).find((l) => l.id === body.id);
+    if (!lut) return jsonError(404, "That file isn't available.");
+    return Response.json({ url: await signDownload(lut.storageKey) });
+  }
+  const [row] =
+    body.kind === "raw"
+      ? await db
+          .select({ key: files.storageKey })
+          .from(files)
+          .where(and(eq(files.id, body.id), eq(files.projectId, id), eq(files.status, "uploaded")))
+      : await db
+          .select({ key: proxyJobs.proxyKey })
+          .from(proxyJobs)
+          .where(and(eq(proxyJobs.id, body.id), eq(proxyJobs.projectId, id), eq(proxyJobs.status, "done")));
+  if (!row) return jsonError(404, "That file isn't available.");
+  return Response.json({ url: await signDownload(row.key) });
+});
