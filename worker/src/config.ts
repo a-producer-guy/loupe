@@ -27,7 +27,7 @@ export function loadConfig() {
     // Jobs at once. Each FFmpeg already uses every CPU core, so 1-2 is right.
     concurrency: Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 2),
     pollSeconds: Math.max(1, Number(process.env.POLL_SECONDS) || 5),
-    workDir: process.env.WORK_DIR || path.join(os.tmpdir(), "reelarc-footage-worker"),
+    workDir: process.env.WORK_DIR || path.join(os.tmpdir(), "loupe-worker"),
   };
 }
 

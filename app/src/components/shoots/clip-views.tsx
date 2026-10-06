@@ -110,7 +110,7 @@ function ClipTile({
 }) {
   const format = formatLine(clip);
   return (
-    <div className="group overflow-hidden rounded-lg border border-line bg-surface transition hover:border-line-strong hover:shadow-[0_18px_40px_-22px_rgba(0,0,0,0.9)]">
+    <div className="group overflow-hidden rounded-lg border border-line bg-surface transition hover:border-line-strong hover:shadow-lift">
       <div
         role="button"
         tabIndex={0}
@@ -122,7 +122,7 @@ function ClipTile({
         {clip.thumbUrl ? (
           <Cover url={clip.thumbUrl} seed={clip.id} contain />
         ) : (
-          <div className="absolute inset-0 grid place-items-center bg-[#0c0d12]">
+          <div className="absolute inset-0 grid place-items-center bg-surface-2">
             <div className="text-center">
               <Film className="mx-auto size-6 text-surface-3" strokeWidth={1.5} />
               <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-faint">{extensionOf(clip.path) || "clip"}</p>

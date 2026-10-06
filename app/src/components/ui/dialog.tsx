@@ -34,7 +34,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-[420px] animate-rise rounded-2xl border border-line-strong bg-surface shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
+        className="w-full max-w-[420px] animate-rise rounded-2xl border border-line-strong bg-surface shadow-lift"
       >
         <div className="flex items-start justify-between gap-4 px-5 pt-5">
           <div>

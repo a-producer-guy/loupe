@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-time Supabase sign-in setup for Reelarc Footage.
+// One-time Supabase sign-in setup for Loupe.
 //
 //   node scripts/setup-supabase.mjs
 //
@@ -19,7 +19,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP_ENV = path.join(ROOT, "app/.env.local");
 const PROJECT_URL = /^https:\/\/[a-z0-9]+\.supabase\.co$/;
 
-/** https://<ref>.supabase.co, from the saved settings or the footage_app login ("footage_app.<ref>"). */
+/** https://<ref>.supabase.co, from the saved settings or the loupe_app login ("loupe_app.<ref>"). */
 function savedProjectUrl() {
   if (!existsSync(APP_ENV)) return null;
   const env = parseEnv(readFileSync(APP_ENV, "utf8"));
@@ -43,7 +43,7 @@ function isSecretKey(key) {
 }
 
 async function main() {
-  console.log("\nReelarc Footage: Supabase sign-in setup\n");
+  console.log("\nLoupe: Supabase sign-in setup\n");
   let url = savedProjectUrl();
   if (url) console.log(`Project: ${url}\n`);
   else url = (await ask("  Project URL (https://….supabase.co): ")).replace(/\/+$/, "");

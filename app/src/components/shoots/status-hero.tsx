@@ -10,8 +10,9 @@ import type { ShootProgress } from "@/lib/upload/manager";
 
 /**
  * The one panel the DIT watches: live upload progress while cards go up, then
- * the green "safe to wipe" the moment every file is checked in storage.
- * "Safe to wipe" only ever comes from the server's checks.
+ * the green "uploaded and checked" the moment every file is checked in storage.
+ * That only ever comes from the server's checks. Loupe doesn't promise "safe to wipe cards":
+ * customers keep their own copy until they've exported, unless they pay for Keep footage.
  */
 export function StatusHero({
   shoot,
@@ -93,8 +94,8 @@ export function StatusHero({
         <Check className="size-10 animate-pop text-good" strokeWidth={2.5} />
       </div>
     );
-    title = `${formatBytes(files.bytesUploaded)} uploaded — safe to wipe cards`;
-    detail = `Every file on ${shoot.cards.length === 1 ? "the card" : `all ${shoot.cards.length} cards`} is in storage, and each one's size was checked.`;
+    title = `${formatBytes(files.bytesUploaded)} uploaded and checked`;
+    detail = `Every file on ${shoot.cards.length === 1 ? "the card" : `all ${shoot.cards.length} cards`} is in storage, and each one's size was checked. Keep your own copy until you've exported.`;
   } else if (files.problems > 0) {
     const cards = shoot.cards.filter((c) => c.files.problems > 0).map((c) => c.card || "loose files");
     visual = (
@@ -102,7 +103,7 @@ export function StatusHero({
         <TriangleAlert className="size-9 text-bad" />
       </div>
     );
-    title = `${files.problems === 1 ? "1 file" : `${files.problems} files`} couldn't be copied — don't wipe ${cards.join(", ")} yet`;
+    title = `${files.problems === 1 ? "1 file" : `${files.problems} files`} couldn't be copied from ${cards.join(", ")}`;
     detail = "Drop the same card again to retry. Everything else on it is already safe.";
   } else {
     visual = (
@@ -143,10 +144,10 @@ export function StatusHero({
               text = `${Math.round((local.bytesDone / Math.max(1, local.bytes)) * 100)}%`;
             } else if (server?.safeToWipe) {
               tone = "good";
-              text = `${formatBytes(server.files.bytesUploaded)} · safe to wipe`;
+              text = `${formatBytes(server.files.bytesUploaded)} · uploaded`;
             } else if (server && server.files.problems > 0) {
               tone = "bad";
-              text = "don't wipe";
+              text = "files missing";
             } else {
               tone = "warn";
               text = server ? `${formatBytes(server.files.bytesUploaded)} of ${formatBytes(server.files.bytesTotal)}` : "waiting";

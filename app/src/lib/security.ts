@@ -45,6 +45,11 @@ export function safeNext(value: unknown): string {
   }
 }
 
+/** Where to land after signing in: the asked-for page, or Your scenes ("/" is the public landing page). */
+export function afterSignIn(next: string): string {
+  return next === "/" ? "/scenes" : next;
+}
+
 /** Sent with every response. */
 export const SECURITY_HEADERS: { key: string; value: string }[] = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },

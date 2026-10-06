@@ -1,17 +1,15 @@
-// Sets up (and later updates) the footage tables in Reelarc Footage's own
-// Supabase project ("Reelarc Footage"; it moved off the Reelarc backend's
-// database on 2026-09-28).
+// Sets up (and later updates) Loupe's tables in Loupe's own Supabase project.
 //
 //   MIGRATION_DATABASE_URL='<that project's postgres connection>' npm run db:migrate
 //   npm run db:migrate -- --admin-env <file with DATABASE_URL=...>   (the same, read from a file)
 //   npm run db:migrate -- --check   (look only, change nothing)
 //
-// Prints exactly what will run and waits for "yes". It only adds footage_
-// tables and the footage_app login; it never alters anything that exists.
-// It refuses a Supabase database that holds another app's tables, so it can
-// never put Footage back into the Reelarc backend's database.
-// The first time, it gives footage_app a random password and saves the
-// footage_app connection into app/.env.local and worker/.env. The admin
+// Prints exactly what will run and waits for "yes". It only adds loupe_
+// tables and the loupe_app login; it never alters anything that exists.
+// It refuses a Supabase database that holds another app's tables, so Loupe
+// can never land in the Reelarc backend's or Reelarc Footage's database.
+// The first time, it gives loupe_app a random password and saves the
+// loupe_app connection into app/.env.local and worker/.env. The admin
 // connection is only used here and is never saved anywhere.
 
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
@@ -26,8 +24,8 @@ import { tlsFor } from "../src/lib/db/supabase-tls";
 
 const APP = path.resolve(__dirname, "..");
 const MIGRATIONS = path.join(APP, "db/migrations");
-// Where the footage_app connection is saved. FOOTAGE_ENV_FILES (comma-separated) overrides it for test runs.
-const ENV_FILES = process.env.FOOTAGE_ENV_FILES?.split(",") ?? [path.join(APP, ".env.local"), path.join(APP, "../worker/.env")];
+// Where the loupe_app connection is saved. LOUPE_ENV_FILES (comma-separated) overrides it for test runs.
+const ENV_FILES = process.env.LOUPE_ENV_FILES?.split(",") ?? [path.join(APP, ".env.local"), path.join(APP, "../worker/.env")];
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -77,7 +75,7 @@ async function confirm(question: string): Promise<boolean> {
 async function main() {
   const adminEnv = option("--admin-env");
   const raw = process.env.MIGRATION_DATABASE_URL || (adminEnv ? readEnvValue(path.resolve(adminEnv), "DATABASE_URL") : undefined);
-  if (!raw) throw new Error("Point me at the Reelarc Footage project's database: set MIGRATION_DATABASE_URL, or --admin-env <file>.");
+  if (!raw) throw new Error("Point me at Loupe's Supabase project's database: set MIGRATION_DATABASE_URL, or --admin-env <file>.");
   const adminUrl = normalizeDatabaseUrl(raw, "session");
   const host = new URL(adminUrl).hostname;
   const sql = postgres(adminUrl, { max: 1, prepare: false, ssl: tlsFor(adminUrl), onnotice: () => {} });
@@ -90,26 +88,26 @@ async function main() {
       select c.relname as name, c.relrowsecurity as rls
         from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind in ('r', 'p') order by 1`;
-    const footageTables = tables.filter((t) => t.name.startsWith("footage_"));
-    const [{ role }] = await sql`select exists (select 1 from pg_roles where rolname = 'footage_app') as role`;
-    const [{ history }] = await sql`select to_regclass('drizzle.__footage_migrations') is not null as history`;
+    const loupeTables = tables.filter((t) => t.name.startsWith("loupe_"));
+    const [{ role }] = await sql`select exists (select 1 from pg_roles where rolname = 'loupe_app') as role`;
+    const [{ history }] = await sql`select to_regclass('drizzle.__loupe_migrations') is not null as history`;
     const applied = history
-      ? await sql<{ created_at: string }[]>`select created_at from drizzle.__footage_migrations order by created_at`
+      ? await sql<{ created_at: string }[]>`select created_at from drizzle.__loupe_migrations order by created_at`
       : [];
-    console.log(`The database has ${tables.length} tables; ${footageTables.length} of them are footage tables.`);
+    console.log(`The database has ${tables.length} tables; ${loupeTables.length} of them are Loupe tables.`);
 
-    // Footage has its own Supabase project. A Supabase database holding other tables is someone
-    // else's (the Reelarc backend's), and Footage must never be set up there again.
-    const others = tables.filter((t) => !t.name.startsWith("footage_"));
+    // Loupe has its own Supabase project. A Supabase database holding other tables is someone
+    // else's (Reelarc's backend, or Reelarc Footage), and Loupe must never be set up there.
+    const others = tables.filter((t) => !t.name.startsWith("loupe_"));
     if (tlsFor(adminUrl) && others.length > 0) {
       throw new Error(
-        `Stopped: this database also holds ${others.length} other table(s) (${others.slice(0, 3).map((t) => t.name).join(", ")}…), so it isn't Reelarc Footage's own project. Nothing was changed.`,
+        `Stopped: this database also holds ${others.length} other table(s) (${others.slice(0, 3).map((t) => t.name).join(", ")}…), so it isn't Loupe's own project. Nothing was changed.`,
       );
     }
 
     if (flag("--check")) {
-      const open = tables.filter((t) => !t.rls && !t.name.startsWith("footage_"));
-      console.log(`Footage migrations applied: ${applied.length}. footage_app login exists: ${role ? "yes" : "no"}.`);
+      const open = tables.filter((t) => !t.rls && !t.name.startsWith("loupe_"));
+      console.log(`Loupe migrations applied: ${applied.length}. loupe_app login exists: ${role ? "yes" : "no"}.`);
       console.log(
         open.length
           ? `Tables without row-level security (${open.length}): ${open.map((t) => t.name).join(", ")}`
@@ -118,9 +116,9 @@ async function main() {
       return;
     }
 
-    // First run: the database must be free of anything footage-shaped.
-    if (applied.length === 0 && (footageTables.length > 0 || role)) {
-      throw new Error("Stopped: footage tables or the footage_app login already exist, but no footage migrations are recorded. Nothing was changed.");
+    // First run: the database must be free of anything Loupe-shaped.
+    if (applied.length === 0 && (loupeTables.length > 0 || role)) {
+      throw new Error("Stopped: Loupe tables or the loupe_app login already exist, but no Loupe migrations are recorded. Nothing was changed.");
     }
 
     const journal = JSON.parse(readFileSync(path.join(MIGRATIONS, "meta/_journal.json"), "utf8")) as {
@@ -140,19 +138,19 @@ async function main() {
         console.log("Stopped. Nothing was changed.");
         return;
       }
-      await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS, migrationsSchema: "drizzle", migrationsTable: "__footage_migrations" });
+      await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS, migrationsSchema: "drizzle", migrationsTable: "__loupe_migrations" });
       console.log("✓ Applied. Everything ran in one transaction.");
     }
 
     const appUrl = new URL(normalizeDatabaseUrl(raw, "transaction"));
     const savedUrl = readEnvValue(ENV_FILES[0], "DATABASE_URL");
-    const savedForThisDb = savedUrl?.includes("footage_app") && new URL(savedUrl).hostname === appUrl.hostname;
+    const savedForThisDb = savedUrl?.includes("loupe_app") && new URL(savedUrl).hostname === appUrl.hostname;
     if (flag("--new-app-password") || !savedForThisDb) {
       const password = randomBytes(24).toString("base64url");
-      await sql.unsafe(`alter role footage_app with password '${scramVerifier(password)}'`);
+      await sql.unsafe(`alter role loupe_app with password '${scramVerifier(password)}'`);
       // Supabase's pooler wants "role.projectref" as the user name.
       const ref = appUrl.username.split(".")[1];
-      appUrl.username = ref ? `footage_app.${ref}` : "footage_app";
+      appUrl.username = ref ? `loupe_app.${ref}` : "loupe_app";
       appUrl.password = password;
       for (const file of ENV_FILES) writeEnv(file, { DATABASE_URL: appUrl.toString() });
 
@@ -167,17 +165,17 @@ async function main() {
           onnotice: () => {},
         });
         try {
-          const [row] = await check`select count(*)::int as n from footage_members`;
+          const [row] = await check`select count(*)::int as n from loupe_members`;
           members = row.n;
         } catch (error) {
-          if (attempt === 10) throw new Error(`footage_app couldn't sign in: ${(error as Error).message}`);
+          if (attempt === 10) throw new Error(`loupe_app couldn't sign in: ${(error as Error).message}`);
           await new Promise((resolve) => setTimeout(resolve, 3_000));
         } finally {
           await check.end({ timeout: 2 });
         }
       }
       const saved = ENV_FILES.map((file) => path.relative(process.cwd(), file)).join(" and ");
-      console.log(`✓ footage_app can sign in and sees ${members} team member(s). Saved its connection into ${saved}.`);
+      console.log(`✓ loupe_app can sign in and sees ${members} team member(s). Saved its connection into ${saved}.`);
     }
   } finally {
     await sql.end({ timeout: 5 });

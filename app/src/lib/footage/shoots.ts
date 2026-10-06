@@ -1,23 +1,23 @@
 // Creating shoots and the few actions on them.
 
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { files, projects, proxyJobs } from "@/lib/db/schema";
 import { DropError } from "./register";
 import { storagePrefix } from "./names";
 import { refreshProjectStatus } from "./verify";
 
-/** "  Ryan   Colone " → "Ryan Colone"; blank → null (no DP yet). */
-export function cleanDpName(name: string | null | undefined): string | null {
-  return name?.trim().replace(/\s+/g, " ").slice(0, 80) || null;
+/** "  The   Offer " → "The Offer". */
+export function cleanSceneName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").slice(0, 120);
 }
 
 export async function createShoot(
   db: Db,
-  input: { name: string; shootDate: string; createdBy: string; lutId?: number | null; dpName?: string | null },
+  input: { accountId: number; name: string; shootDate: string; createdBy: string; lutId?: number | null },
 ) {
-  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 120);
-  if (!name) throw new DropError("Give the shoot a name, like the client's name.");
+  const name = cleanSceneName(input.name);
+  if (!name) throw new DropError("Give the scene a name, like its title in the script.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.shootDate) || Number.isNaN(Date.parse(input.shootDate))) {
     throw new DropError("Pick the shoot date.");
   }
@@ -26,12 +26,12 @@ export async function createShoot(
     const [row] = await tx
       .insert(projects)
       .values({
+        accountId: input.accountId,
         name,
         shootDate: input.shootDate,
         storagePrefix: sql`'pending-' || gen_random_uuid()`,
         createdBy: input.createdBy,
         lutId: input.lutId ?? null,
-        dpName: cleanDpName(input.dpName),
       })
       .returning({ id: projects.id });
     const [shoot] = await tx
@@ -43,34 +43,12 @@ export async function createShoot(
   });
 }
 
-/** Sets or clears the shoot's DP. Returns the name as saved, or undefined when there's no such shoot. */
-export async function setShootDp(db: Db, projectId: number, dpName: string | null): Promise<string | null | undefined> {
-  const [row] = await db
-    .update(projects)
-    .set({ dpName: cleanDpName(dpName) })
-    .where(eq(projects.id, projectId))
-    .returning({ dpName: projects.dpName });
-  return row ? row.dpName : undefined;
-}
-
-/** DPs already typed in, most recent shoot first and each once, to suggest on the next shoot. */
-export async function recentDps(db: Db, limit = 20): Promise<string[]> {
-  const rows = await db
-    .select({ name: projects.dpName })
-    .from(projects)
-    .where(isNotNull(projects.dpName))
-    .groupBy(projects.dpName)
-    .orderBy(desc(sql`max(${projects.id})`))
-    .limit(200);
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const { name } of rows) {
-    const key = name!.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    names.push(name!);
-  }
-  return names.slice(0, limit);
+/** Renames a scene. Its B2 folder keeps its first name, so no files move. */
+export async function renameShoot(db: Db, projectId: number, name: string): Promise<string | undefined> {
+  const clean = cleanSceneName(name);
+  if (!clean) throw new DropError("Give the scene a name.");
+  const [row] = await db.update(projects).set({ name: clean }).where(eq(projects.id, projectId)).returning({ name: projects.name });
+  return row?.name;
 }
 
 /** Puts failed proxies back in the queue with a fresh set of attempts. */

@@ -2,7 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
-import { files, projects, proxyJobs } from "@/lib/db/schema";
+import { files, proxyJobs } from "@/lib/db/schema";
+import { ownedShoot } from "@/lib/footage/access";
 import { jsonError, readJson, route, shootIdFrom } from "@/lib/api";
 import { lutFileName, lutsUsedBy } from "@/lib/footage/luts";
 import { signDownload } from "@/lib/storage";
@@ -12,12 +13,12 @@ import { signDownload } from "@/lib/storage";
 // plus the shoot's LUTs in LUTs/ for applying the same look to the originals.
 
 export const GET = route(async (_request, ctx: RouteContext<"/api/shoots/[id]/downloads">) => {
-  const member = await apiMember("admin");
+  const member = await apiMember("read");
   if (member instanceof Response) return member;
   const id = await shootIdFrom(ctx.params);
   const db = getDb();
-  const [shoot] = id ? await db.select().from(projects).where(eq(projects.id, id)) : [];
-  if (!shoot) return jsonError(404, "That shoot doesn't exist.");
+  const shoot = await ownedShoot(db, member, id);
+  if (!shoot) return jsonError(404, "That scene doesn't exist.");
 
   const raw = await db
     .select({ id: files.id, path: files.path, size: files.sizeBytes })
@@ -47,13 +48,13 @@ const LinkRequest = z.object({ kind: z.enum(["raw", "proxy", "lut"]), id: z.numb
 
 /** A fresh download link for one file, made at the moment it's needed. */
 export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/downloads">) => {
-  const member = await apiMember("admin");
+  const member = await apiMember("read");
   if (member instanceof Response) return member;
   const id = await shootIdFrom(ctx.params);
-  if (!id) return jsonError(404, "That shoot doesn't exist.");
+  const db = getDb();
+  if (!id || !(await ownedShoot(db, member, id))) return jsonError(404, "That scene doesn't exist.");
   const body = await readJson(request, LinkRequest);
   if (body instanceof Response) return body;
-  const db = getDb();
   if (body.kind === "lut") {
     const lut = (await lutsUsedBy(db, id)).find((l) => l.id === body.id);
     if (!lut) return jsonError(404, "That file isn't available.");

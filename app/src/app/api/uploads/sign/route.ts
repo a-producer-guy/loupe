@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { ownedFileByKey } from "@/lib/footage/access";
 import { z } from "zod";
 import { apiMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
@@ -19,18 +20,15 @@ const SignRequest = z.object({
 });
 
 export const POST = route(async (request) => {
-  const member = await apiMember("admin");
+  const member = await apiMember("write");
   if (member instanceof Response) return member;
   const body = await readJson(request, SignRequest);
   if (body instanceof Response) return body;
   if (body.method === "DELETE") return jsonError(403, "Deleting from storage is turned off.", "no-delete");
 
   const db = getDb();
-  const [file] = await db
-    .select({ id: files.id, status: files.status, uploadId: files.uploadId })
-    .from(files)
-    .where(eq(files.storageKey, body.key));
-  if (!file) return jsonError(404, "This file isn't part of a shoot any more.", "gone");
+  const file = await ownedFileByKey(db, member, body.key);
+  if (!file) return jsonError(404, "This file isn't part of a scene any more.", "gone");
   if (file.status === "uploaded") return jsonError(409, "This file is already uploaded.", "already-uploaded");
   if (file.status === "unreadable") return jsonError(409, "This file couldn't be read from the card.", "unreadable");
 

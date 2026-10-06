@@ -1,6 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { safeNext } from "@/lib/auth";
+import { afterSignIn } from "@/lib/security";
 import { createSupabase } from "@/lib/supabase/server";
 
 // Where the sign-in email's link lands. Handles both link styles Supabase can
@@ -24,5 +25,5 @@ export async function GET(request: NextRequest) {
     if (next !== "/") login.searchParams.set("next", next);
     return NextResponse.redirect(login);
   }
-  return NextResponse.redirect(new URL(next, request.url));
+  return NextResponse.redirect(new URL(afterSignIn(next), request.url));
 }

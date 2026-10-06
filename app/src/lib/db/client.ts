@@ -7,7 +7,7 @@ import { normalizeDatabaseUrl } from "./connection-url";
 import * as schema from "./schema";
 import { tlsFor } from "./supabase-tls";
 
-// Connects as footage_app through Supabase's transaction pooler, the right
+// Connects as loupe_app through Supabase's transaction pooler, the right
 // choice for serverless: prepared statements off, and a small pool per
 // function instance. Encrypted, and checked to really be Supabase.
 

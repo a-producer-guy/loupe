@@ -48,7 +48,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto flex w-full max-w-md animate-toast items-center gap-3 rounded-xl border border-line-strong bg-surface-2/95 px-4 py-3 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.8)] backdrop-blur-md"
+            className="pointer-events-auto flex w-full max-w-md animate-toast items-center gap-3 rounded-xl border border-line-strong bg-surface-2/95 px-4 py-3 shadow-lift backdrop-blur-md"
           >
             {icons[toast.tone]}
             <div className="min-w-0 flex-1">

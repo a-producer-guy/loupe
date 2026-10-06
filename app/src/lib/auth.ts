@@ -1,14 +1,15 @@
 import "server-only";
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
-import { members } from "@/lib/db/schema";
+import { canWrite, ensureMember, type Member } from "@/lib/footage/accounts";
 import { createSupabase } from "@/lib/supabase/server";
 
-// Signing in proves who someone is; footage_members decides whether they're on
-// the team. Every page and API route checks both, not just proxy.ts.
+// Signing in proves who someone is; loupe_members says which account they belong to. Anyone can
+// sign up: the first time an email signs in, it gets its own account on the free plan. Every page
+// and API route checks the member, and every route that touches a scene checks the scene is in
+// that member's account (lib/footage/access.ts), not just proxy.ts.
 
-export type Member = typeof members.$inferSelect;
+export type { Member };
 
 export async function currentEmail(): Promise<string | null> {
   // Local testing only (npm run dev with no Supabase): production builds drop this line.
@@ -19,29 +20,26 @@ export async function currentEmail(): Promise<string | null> {
   return typeof email === "string" && email ? email.toLowerCase() : null;
 }
 
-export async function findMember(email: string): Promise<Member | null> {
-  const [member] = await getDb().select().from(members).where(eq(members.email, email.trim().toLowerCase()));
-  return member ?? null;
-}
-
-/** For pages: anyone who isn't a signed-in team member goes to the sign-in page. */
+/** For pages: anyone signed out goes to the sign-in page; a first sign-in gets an account. */
 export async function requireMember(): Promise<Member> {
   const email = await currentEmail();
-  const member = email ? await findMember(email) : null;
-  if (!member) redirect("/login");
-  return member;
+  if (!email) redirect("/login");
+  return ensureMember(email, getDb());
 }
 
 /** For API routes: the member, or the response to send back instead. */
-export async function apiMember(role?: Member["role"]): Promise<Member | Response> {
+export async function apiMember(need: "read" | "write" | "owner" = "read"): Promise<Member | Response> {
   const email = await currentEmail();
   if (!email) return Response.json({ error: "Please sign in again.", code: "signed-out" }, { status: 401 });
-  const member = await findMember(email);
-  if (!member) return Response.json({ error: "You're not on the Reelarc team list.", code: "not-member" }, { status: 403 });
-  if (role && member.role !== role) {
-    return Response.json({ error: "Only admins can do that.", code: "not-allowed" }, { status: 403 });
+  const member = await ensureMember(email, getDb());
+  if (need === "write" && !canWrite(member)) {
+    return Response.json({ error: "Your role can watch and comment, not change scenes.", code: "not-allowed" }, { status: 403 });
+  }
+  if (need === "owner" && member.role !== "owner") {
+    return Response.json({ error: "Only the account owner can do that.", code: "not-allowed" }, { status: 403 });
   }
   return member;
 }
 
+export { canWrite, ensureMember };
 export { safeNext } from "@/lib/security";

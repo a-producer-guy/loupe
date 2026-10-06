@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790186248924,
-      "tag": "0000_phase1",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790192001539,
-      "tag": "0001_clip_details",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790203925705,
-      "tag": "0002_luts",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790205252711,
-      "tag": "0003_web_previews",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790360476860,
-      "tag": "0004_shoot_dp",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1790605621330,
-      "tag": "0005_sign_in_guards",
+      "when": 1791314319646,
+      "tag": "0000_loupe",
       "breakpoints": true
     }
   ]

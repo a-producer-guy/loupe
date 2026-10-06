@@ -156,11 +156,10 @@ export function searchWords(query: string): string[] {
  * ways ("2026-09-23 september sep 23") and its number ("p1001"). The database
  * builds the same text in searchShoots, for shoots this screen hasn't loaded.
  */
-export function shootSearchText(shoot: { id: number; name: string; shootDate: string; dpName?: string | null }): string {
+export function shootSearchText(shoot: { id: number; name: string; shootDate: string }): string {
   const date = new Date(`${shoot.shootDate}T12:00:00Z`);
   const month = (style: "long" | "short") => date.toLocaleDateString("en-US", { month: style, timeZone: "UTC" });
-  const dp = shoot.dpName ? `${shoot.dpName} ` : "";
-  return `${shoot.name} ${dp}${shoot.shootDate} ${month("long")} ${month("short")} ${date.getUTCDate()} p${shoot.id}`.toLowerCase();
+  return `${shoot.name} ${shoot.shootDate} ${month("long")} ${month("short")} ${date.getUTCDate()} p${shoot.id}`.toLowerCase();
 }
 
 /** "about 12 min left", or "less than a minute left" near the end. Empty when unknown. */

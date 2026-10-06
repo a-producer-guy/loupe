@@ -1,32 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import { Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
 
-const degular = localFont({
-  src: [
-    { path: "../fonts/Degular-Regular.otf", weight: "400", style: "normal" },
-    { path: "../fonts/Degular-Medium.otf", weight: "500", style: "normal" },
-    { path: "../fonts/Degular-Semibold.otf", weight: "600", style: "normal" },
-    { path: "../fonts/Degular-Bold.otf", weight: "700", style: "normal" },
-  ],
-  variable: "--font-degular",
-  display: "swap",
-});
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Reelarc Footage",
-  description: "Drop a shoot's cards, get Premiere proxies automatically.",
+  title: "Loupe · Direct your edit",
+  description: "Drop your scene. Loupe watches every take, lines it up with your script and hands you a first cut, with a reason for every shot.",
+  // Not ready for search engines until launch.
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { themeColor: "#000000", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#f6f6f3", colorScheme: "light" };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Every page renders per request, so each gets proxy.ts's fresh nonce (static pages can't carry one).
   await connection();
   return (
-    <html lang="en" className={`${degular.variable} h-full`}>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable} h-full`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

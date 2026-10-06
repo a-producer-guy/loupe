@@ -1,11 +1,11 @@
 {
-  "id": "a08f1d45-4e88-4aff-afd4-62605cceffb2",
+  "id": "60e32574-ef76-49a3-b3f5-042cb7b5028d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.footage_files": {
-      "name": "footage_files",
+    "public.loupe_accounts": {
+      "name": "loupe_accounts",
       "schema": "",
       "columns": {
         "id": {
@@ -15,7 +15,157 @@
           "notNull": true,
           "identity": {
             "type": "always",
-            "name": "footage_files_id_seq",
+            "name": "loupe_accounts_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan": {
+          "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'free'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "loupe_app_all": {
+          "name": "loupe_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "loupe_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {
+        "loupe_accounts_plan_valid": {
+          "name": "loupe_accounts_plan_valid",
+          "value": "\"loupe_accounts\".\"plan\" in ('free', 'indie', 'pro', 'studio')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.loupe_card_luts": {
+      "name": "loupe_card_luts",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "card": {
+          "name": "card",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lut_id": {
+          "name": "lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "loupe_card_luts_project_id_loupe_projects_id_fk": {
+          "name": "loupe_card_luts_project_id_loupe_projects_id_fk",
+          "tableFrom": "loupe_card_luts",
+          "tableTo": "loupe_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "loupe_card_luts_lut_id_loupe_luts_id_fk": {
+          "name": "loupe_card_luts_lut_id_loupe_luts_id_fk",
+          "tableFrom": "loupe_card_luts",
+          "tableTo": "loupe_luts",
+          "columnsFrom": [
+            "lut_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "loupe_card_luts_project_id_card_pk": {
+          "name": "loupe_card_luts_project_id_card_pk",
+          "columns": [
+            "project_id",
+            "card"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {
+        "loupe_app_all": {
+          "name": "loupe_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "loupe_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.loupe_files": {
+      "name": "loupe_files",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "loupe_files_id_seq",
             "schema": "public",
             "increment": "1",
             "startWith": "1",
@@ -109,8 +259,8 @@
         }
       },
       "indexes": {
-        "footage_files_project_path_idx": {
-          "name": "footage_files_project_path_idx",
+        "loupe_files_project_path_idx": {
+          "name": "loupe_files_project_path_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -130,8 +280,8 @@
           "method": "btree",
           "with": {}
         },
-        "footage_files_project_card_idx": {
-          "name": "footage_files_project_card_idx",
+        "loupe_files_project_card_idx": {
+          "name": "loupe_files_project_card_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -153,10 +303,10 @@
         }
       },
       "foreignKeys": {
-        "footage_files_project_id_footage_projects_id_fk": {
-          "name": "footage_files_project_id_footage_projects_id_fk",
-          "tableFrom": "footage_files",
-          "tableTo": "footage_projects",
+        "loupe_files_project_id_loupe_projects_id_fk": {
+          "name": "loupe_files_project_id_loupe_projects_id_fk",
+          "tableFrom": "loupe_files",
+          "tableTo": "loupe_projects",
           "columnsFrom": [
             "project_id"
           ],
@@ -169,8 +319,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "footage_files_storage_key_unique": {
-          "name": "footage_files_storage_key_unique",
+        "loupe_files_storage_key_unique": {
+          "name": "loupe_files_storage_key_unique",
           "nullsNotDistinct": false,
           "columns": [
             "storage_key"
@@ -178,31 +328,31 @@
         }
       },
       "policies": {
-        "footage_app_all": {
-          "name": "footage_app_all",
+        "loupe_app_all": {
+          "name": "loupe_app_all",
           "as": "PERMISSIVE",
           "for": "ALL",
           "to": [
-            "footage_app"
+            "loupe_app"
           ],
           "using": "true",
           "withCheck": "true"
         }
       },
       "checkConstraints": {
-        "footage_files_status_valid": {
-          "name": "footage_files_status_valid",
-          "value": "\"footage_files\".\"status\" in ('pending', 'uploading', 'uploaded', 'unreadable')"
+        "loupe_files_status_valid": {
+          "name": "loupe_files_status_valid",
+          "value": "\"loupe_files\".\"status\" in ('pending', 'uploading', 'uploaded', 'unreadable')"
         },
-        "footage_files_size_valid": {
-          "name": "footage_files_size_valid",
-          "value": "\"footage_files\".\"size_bytes\" >= 0"
+        "loupe_files_size_valid": {
+          "name": "loupe_files_size_valid",
+          "value": "\"loupe_files\".\"size_bytes\" >= 0"
         }
       },
       "isRLSEnabled": true
     },
-    "public.footage_members": {
-      "name": "footage_members",
+    "public.loupe_luts": {
+      "name": "loupe_luts",
       "schema": "",
       "columns": {
         "id": {
@@ -212,7 +362,7 @@
           "notNull": true,
           "identity": {
             "type": "always",
-            "name": "footage_members_id_seq",
+            "name": "loupe_luts_id_seq",
             "schema": "public",
             "increment": "1",
             "startWith": "1",
@@ -221,6 +371,134 @@
             "cache": "1",
             "cycle": false
           }
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cube_size": {
+          "name": "cube_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "loupe_luts_account_idx": {
+          "name": "loupe_luts_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "loupe_luts_account_id_loupe_accounts_id_fk": {
+          "name": "loupe_luts_account_id_loupe_accounts_id_fk",
+          "tableFrom": "loupe_luts",
+          "tableTo": "loupe_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "loupe_luts_storage_key_unique": {
+          "name": "loupe_luts_storage_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "storage_key"
+          ]
+        }
+      },
+      "policies": {
+        "loupe_app_all": {
+          "name": "loupe_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "loupe_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.loupe_members": {
+      "name": "loupe_members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "loupe_members_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
         },
         "email": {
           "name": "email",
@@ -233,7 +511,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'admin'"
+          "default": "'owner'"
         },
         "created_at": {
           "name": "created_at",
@@ -243,12 +521,42 @@
           "default": "now()"
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
+      "indexes": {
+        "loupe_members_account_idx": {
+          "name": "loupe_members_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "loupe_members_account_id_loupe_accounts_id_fk": {
+          "name": "loupe_members_account_id_loupe_accounts_id_fk",
+          "tableFrom": "loupe_members",
+          "tableTo": "loupe_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "footage_members_email_unique": {
-          "name": "footage_members_email_unique",
+        "loupe_members_email_unique": {
+          "name": "loupe_members_email_unique",
           "nullsNotDistinct": false,
           "columns": [
             "email"
@@ -256,31 +564,31 @@
         }
       },
       "policies": {
-        "footage_app_all": {
-          "name": "footage_app_all",
+        "loupe_app_all": {
+          "name": "loupe_app_all",
           "as": "PERMISSIVE",
           "for": "ALL",
           "to": [
-            "footage_app"
+            "loupe_app"
           ],
           "using": "true",
           "withCheck": "true"
         }
       },
       "checkConstraints": {
-        "footage_members_email_lowercase": {
-          "name": "footage_members_email_lowercase",
-          "value": "\"footage_members\".\"email\" = lower(\"footage_members\".\"email\")"
+        "loupe_members_email_lowercase": {
+          "name": "loupe_members_email_lowercase",
+          "value": "\"loupe_members\".\"email\" = lower(\"loupe_members\".\"email\")"
         },
-        "footage_members_role_valid": {
-          "name": "footage_members_role_valid",
-          "value": "\"footage_members\".\"role\" in ('admin', 'editor', 'social')"
+        "loupe_members_role_valid": {
+          "name": "loupe_members_role_valid",
+          "value": "\"loupe_members\".\"role\" in ('owner', 'editor', 'director', 'viewer')"
         }
       },
       "isRLSEnabled": true
     },
-    "public.footage_projects": {
-      "name": "footage_projects",
+    "public.loupe_projects": {
+      "name": "loupe_projects",
       "schema": "",
       "columns": {
         "id": {
@@ -290,7 +598,7 @@
           "notNull": true,
           "identity": {
             "type": "byDefault",
-            "name": "footage_projects_id_seq",
+            "name": "loupe_projects_id_seq",
             "schema": "public",
             "increment": "1",
             "startWith": "1001",
@@ -299,6 +607,12 @@
             "cache": "1",
             "cycle": false
           }
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
         },
         "name": {
           "name": "name",
@@ -331,6 +645,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "lut_id": {
+          "name": "lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -346,9 +666,15 @@
         }
       },
       "indexes": {
-        "footage_projects_shoot_date_idx": {
-          "name": "footage_projects_shoot_date_idx",
+        "loupe_projects_account_idx": {
+          "name": "loupe_projects_account_idx",
           "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "shoot_date",
               "isExpression": false,
@@ -362,11 +688,38 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "loupe_projects_account_id_loupe_accounts_id_fk": {
+          "name": "loupe_projects_account_id_loupe_accounts_id_fk",
+          "tableFrom": "loupe_projects",
+          "tableTo": "loupe_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "loupe_projects_lut_id_loupe_luts_id_fk": {
+          "name": "loupe_projects_lut_id_loupe_luts_id_fk",
+          "tableFrom": "loupe_projects",
+          "tableTo": "loupe_luts",
+          "columnsFrom": [
+            "lut_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "footage_projects_storage_prefix_unique": {
-          "name": "footage_projects_storage_prefix_unique",
+        "loupe_projects_storage_prefix_unique": {
+          "name": "loupe_projects_storage_prefix_unique",
           "nullsNotDistinct": false,
           "columns": [
             "storage_prefix"
@@ -374,27 +727,27 @@
         }
       },
       "policies": {
-        "footage_app_all": {
-          "name": "footage_app_all",
+        "loupe_app_all": {
+          "name": "loupe_app_all",
           "as": "PERMISSIVE",
           "for": "ALL",
           "to": [
-            "footage_app"
+            "loupe_app"
           ],
           "using": "true",
           "withCheck": "true"
         }
       },
       "checkConstraints": {
-        "footage_projects_status_valid": {
-          "name": "footage_projects_status_valid",
-          "value": "\"footage_projects\".\"status\" in ('scheduled', 'uploading', 'uploaded', 'delivered', 'purged')"
+        "loupe_projects_status_valid": {
+          "name": "loupe_projects_status_valid",
+          "value": "\"loupe_projects\".\"status\" in ('scheduled', 'uploading', 'uploaded', 'delivered', 'purged')"
         }
       },
       "isRLSEnabled": true
     },
-    "public.footage_proxy_jobs": {
-      "name": "footage_proxy_jobs",
+    "public.loupe_proxy_jobs": {
+      "name": "loupe_proxy_jobs",
       "schema": "",
       "columns": {
         "id": {
@@ -404,7 +757,7 @@
           "notNull": true,
           "identity": {
             "type": "always",
-            "name": "footage_proxy_jobs_id_seq",
+            "name": "loupe_proxy_jobs_id_seq",
             "schema": "public",
             "increment": "1",
             "startWith": "1",
@@ -496,6 +849,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "preview_size_bytes": {
+          "name": "preview_size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "media": {
+          "name": "media",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lut_id": {
+          "name": "lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "made_with_lut_id": {
+          "name": "made_with_lut_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
         "started_at": {
           "name": "started_at",
           "type": "timestamp with time zone",
@@ -517,8 +894,8 @@
         }
       },
       "indexes": {
-        "footage_proxy_jobs_queue_idx": {
-          "name": "footage_proxy_jobs_queue_idx",
+        "loupe_proxy_jobs_queue_idx": {
+          "name": "loupe_proxy_jobs_queue_idx",
           "columns": [
             {
               "expression": "status",
@@ -538,8 +915,8 @@
           "method": "btree",
           "with": {}
         },
-        "footage_proxy_jobs_project_idx": {
-          "name": "footage_proxy_jobs_project_idx",
+        "loupe_proxy_jobs_project_idx": {
+          "name": "loupe_proxy_jobs_project_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -555,10 +932,10 @@
         }
       },
       "foreignKeys": {
-        "footage_proxy_jobs_file_id_footage_files_id_fk": {
-          "name": "footage_proxy_jobs_file_id_footage_files_id_fk",
-          "tableFrom": "footage_proxy_jobs",
-          "tableTo": "footage_files",
+        "loupe_proxy_jobs_file_id_loupe_files_id_fk": {
+          "name": "loupe_proxy_jobs_file_id_loupe_files_id_fk",
+          "tableFrom": "loupe_proxy_jobs",
+          "tableTo": "loupe_files",
           "columnsFrom": [
             "file_id"
           ],
@@ -568,12 +945,25 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "footage_proxy_jobs_project_id_footage_projects_id_fk": {
-          "name": "footage_proxy_jobs_project_id_footage_projects_id_fk",
-          "tableFrom": "footage_proxy_jobs",
-          "tableTo": "footage_projects",
+        "loupe_proxy_jobs_project_id_loupe_projects_id_fk": {
+          "name": "loupe_proxy_jobs_project_id_loupe_projects_id_fk",
+          "tableFrom": "loupe_proxy_jobs",
+          "tableTo": "loupe_projects",
           "columnsFrom": [
             "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "loupe_proxy_jobs_lut_id_loupe_luts_id_fk": {
+          "name": "loupe_proxy_jobs_lut_id_loupe_luts_id_fk",
+          "tableFrom": "loupe_proxy_jobs",
+          "tableTo": "loupe_luts",
+          "columnsFrom": [
+            "lut_id"
           ],
           "columnsTo": [
             "id"
@@ -584,15 +974,15 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "footage_proxy_jobs_file_id_unique": {
-          "name": "footage_proxy_jobs_file_id_unique",
+        "loupe_proxy_jobs_file_id_unique": {
+          "name": "loupe_proxy_jobs_file_id_unique",
           "nullsNotDistinct": false,
           "columns": [
             "file_id"
           ]
         },
-        "footage_proxy_jobs_proxy_key_unique": {
-          "name": "footage_proxy_jobs_proxy_key_unique",
+        "loupe_proxy_jobs_proxy_key_unique": {
+          "name": "loupe_proxy_jobs_proxy_key_unique",
           "nullsNotDistinct": false,
           "columns": [
             "proxy_key"
@@ -600,23 +990,67 @@
         }
       },
       "policies": {
-        "footage_app_all": {
-          "name": "footage_app_all",
+        "loupe_app_all": {
+          "name": "loupe_app_all",
           "as": "PERMISSIVE",
           "for": "ALL",
           "to": [
-            "footage_app"
+            "loupe_app"
           ],
           "using": "true",
           "withCheck": "true"
         }
       },
       "checkConstraints": {
-        "footage_proxy_jobs_status_valid": {
-          "name": "footage_proxy_jobs_status_valid",
-          "value": "\"footage_proxy_jobs\".\"status\" in ('queued', 'running', 'done', 'failed', 'skipped')"
+        "loupe_proxy_jobs_status_valid": {
+          "name": "loupe_proxy_jobs_status_valid",
+          "value": "\"loupe_proxy_jobs\".\"status\" in ('queued', 'running', 'done', 'failed', 'skipped')"
         }
       },
+      "isRLSEnabled": true
+    },
+    "public.loupe_sign_in_attempts": {
+      "name": "loupe_sign_in_attempts",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "failures": {
+          "name": "failures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "loupe_app_all": {
+          "name": "loupe_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "loupe_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {},
       "isRLSEnabled": true
     }
   },

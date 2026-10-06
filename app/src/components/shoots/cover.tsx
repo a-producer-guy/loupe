@@ -3,15 +3,15 @@
 
 import { useState } from "react";
 
-// Frame.io gives every project a glossy cover. Shoots without a still yet get
-// a gradient of their own, picked from the shoot's id so it never changes.
+// Scenes without a still yet get a quiet gradient of their own, picked from the scene's id so it
+// never changes: warm and cool greys, like a booth before the lights come on.
 const PALETTES = [
-  ["#ff3d8a", "#7c3aed"],
-  ["#f472b6", "#2563eb"],
-  ["#fb7185", "#f59e0b"],
-  ["#a855f7", "#ff3d8a"],
-  ["#22d3ee", "#7c3aed"],
-  ["#ff3d8a", "#0ea5e9"],
+  ["#d9cbb8", "#a9b6c2"],
+  ["#c9c3b6", "#d8d2c4"],
+  ["#bfc8cf", "#e2d6c4"],
+  ["#d4c7c0", "#b8c1b6"],
+  ["#cfd3d6", "#c9bba8"],
+  ["#d8d0c2", "#b4bdc6"],
 ];
 
 export function GradientArt({ seed }: { seed: number }) {
@@ -20,7 +20,7 @@ export function GradientArt({ seed }: { seed: number }) {
     <div
       className="absolute inset-0"
       style={{
-        background: `radial-gradient(120% 90% at 88% 8%, ${a}66 0%, transparent 55%), radial-gradient(90% 100% at 8% 100%, ${b}77 0%, transparent 60%), linear-gradient(160deg, #1a1d29, #0d0f15)`,
+        background: `radial-gradient(120% 90% at 88% 8%, ${a} 0%, transparent 60%), radial-gradient(90% 100% at 8% 100%, ${b} 0%, transparent 65%), linear-gradient(160deg, #efefeb, #e4e4df)`,
       }}
     />
   );

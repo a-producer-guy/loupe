@@ -65,16 +65,17 @@ export function lutFileName(lut: { id: number; name: string }): string {
   return `${safe || `LUT ${lut.id}`}.cube`;
 }
 
-/** The team's LUTs by name, and the one used on the most recent shoot (the default for a new one). */
-export async function listLuts(db: Db): Promise<{ luts: Lut[]; lastUsedId: number | null }> {
+/** The account's LUTs by name, and the one used on its most recent scene (the default for a new one). */
+export async function listLuts(db: Db, accountId: number): Promise<{ luts: Lut[]; lastUsedId: number | null }> {
   const rows = await db
     .select({ id: luts.id, name: luts.name, cubeSize: luts.cubeSize })
     .from(luts)
+    .where(eq(luts.accountId, accountId))
     .orderBy(sql`lower(${luts.name})`, luts.id);
   const [last] = await db
     .select({ lutId: projects.lutId })
     .from(projects)
-    .where(isNotNull(projects.lutId))
+    .where(and(eq(projects.accountId, accountId), isNotNull(projects.lutId)))
     .orderBy(desc(projects.createdAt), desc(projects.id))
     .limit(1);
   return { luts: rows, lastUsedId: last?.lutId ?? null };
@@ -87,7 +88,7 @@ export async function getLut(db: Db, id: number) {
 
 export async function addLut(
   db: Db,
-  input: { name: string; storageKey: string; sizeBytes: number; cubeSize: number; createdBy: string },
+  input: { accountId: number; name: string; storageKey: string; sizeBytes: number; cubeSize: number; createdBy: string },
 ): Promise<Lut> {
   const [row] = await db
     .insert(luts)

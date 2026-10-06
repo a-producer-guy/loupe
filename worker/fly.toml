@@ -1,6 +1,6 @@
 # Fly.io settings for the proxy worker (only needed if we host it on Fly).
 # Deploy from this folder with: fly deploy
-app = "reelarc-footage-worker"
+app = "loupe-worker"
 primary_region = "iad"
 
 [build]

@@ -1,36 +1,47 @@
 @import "tailwindcss";
 
 /*
- * Frame.io-style layered dark UI (cool slate surfaces, hairline borders,
- * compact type), with Reelarc's pink as the one accent color.
+ * Loupe, the "Invisible Edit Suite": bright, calm and architectural. White and very light grey,
+ * soft shadows, rounded corners, and ink for anything you press. Tally red (the camera's "on air"
+ * light) is the one accent, used sparingly. The token names come from the app Loupe grew out of
+ * (Reelarc Footage): "pink" is the main action colour, which in Loupe is ink.
  */
 :root {
-  --bg: #0e1016;
-  --rail: #08090d;
-  --panel: #12141b;
-  --surface: #181b24;
-  --surface-2: #1f232e;
-  --surface-3: #292d3a;
-  --text: #f2f3f6;
-  --muted: #9ba1b0;
-  --faint: #6a7080;
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
-  --pink: #ff3d8a;
-  --pink-hover: #ff5b9d;
-  --pink-soft: rgba(255, 61, 138, 0.14);
-  --good: #3ecf8e;
-  --good-soft: rgba(62, 207, 142, 0.13);
-  --warn: #f5b544;
-  --warn-soft: rgba(245, 181, 68, 0.13);
-  --bad: #ff5c6c;
-  --bad-soft: rgba(255, 92, 108, 0.13);
-  --info: #7aa2ff;
-  --info-soft: rgba(122, 162, 255, 0.14);
+  --bg: #f6f6f3;
+  --rail: #ffffff;
+  --panel: #fbfbf9;
+  --surface: #ffffff;
+  --surface-2: #efefeb;
+  --surface-3: #e4e4df;
+  --text: #161614;
+  --muted: #55554f;
+  --faint: #97978f;
+  --line: rgba(22, 22, 20, 0.08);
+  --line-strong: rgba(22, 22, 20, 0.15);
+  --pink: #161614;
+  --pink-hover: #2a2a27;
+  --pink-soft: rgba(22, 22, 20, 0.07);
+  --tally: #e2452b;
+  --tally-soft: rgba(226, 69, 43, 0.09);
+  --good: #23784a;
+  --good-soft: #e7f3ec;
+  --warn: #a8640f;
+  --warn-soft: #fbf1e1;
+  --bad: #c7361f;
+  --bad-soft: rgba(226, 69, 43, 0.09);
+  --info: #3d7be0;
+  --info-soft: rgba(61, 123, 224, 0.1);
+  --lift: 0 1px 2px rgba(20, 20, 18, 0.05), 0 10px 30px rgba(20, 20, 18, 0.07);
+  --lift-sm: 0 1px 2px rgba(20, 20, 18, 0.06), 0 3px 10px rgba(20, 20, 18, 0.06);
 }
 
 @theme inline {
-  --font-sans: var(--font-degular), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --color-tally: var(--tally);
+  --color-tally-soft: var(--tally-soft);
+  --shadow-lift: var(--lift);
+  --shadow-lift-sm: var(--lift-sm);
   --color-bg: var(--bg);
   --color-rail: var(--rail);
   --color-panel: var(--panel);
@@ -83,8 +94,8 @@
   to { stroke-dashoffset: -28; }
 }
 @keyframes glow {
-  0% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.5); }
-  100% { box-shadow: 0 0 0 18px rgba(62, 207, 142, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(35, 120, 74, 0.35); }
+  100% { box-shadow: 0 0 0 18px rgba(35, 120, 74, 0); }
 }
 @keyframes shimmer {
   from { background-position: -200% 0; }
@@ -92,7 +103,7 @@
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -102,11 +113,12 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 14px;
+  letter-spacing: -0.005em;
 }
 
 ::selection {
-  background: var(--pink);
-  color: #fff;
+  background: rgba(226, 69, 43, 0.18);
+  color: var(--text);
 }
 
 :focus-visible {
@@ -127,11 +139,11 @@ body {
   to { background-position: 28px 0; }
 }
 .bar-busy {
-  background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.18) 0 7px, transparent 7px 14px);
+  background-image: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.28) 0 7px, transparent 7px 14px);
   animation: stripes 0.9s linear infinite;
 }
 
-/* Thin, quiet scrollbars like Frame.io's panels. */
+/* Thin, quiet scrollbars. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--surface-3) transparent;
@@ -144,3 +156,38 @@ body {
     transition-duration: 1ms !important;
   }
 }
+
+/* ---------- Loupe, the character (components/loupe) ---------- */
+.loupe { position: relative; display: inline-block; flex: none; line-height: 0; vertical-align: middle; }
+.loupe svg { display: block; overflow: visible; filter: drop-shadow(0 2px 4px rgba(20, 20, 18, 0.14)); }
+.loupe .loupe-lens, .loupe .loupe-ap { transform-box: fill-box; transform-origin: center; }
+.loupe-idle .loupe-lens { animation: loupe-blink 6s infinite; }
+@keyframes loupe-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+.loupe .loupe-ap { transition: transform 0.45s cubic-bezier(0.3, 1.5, 0.5, 1); }
+.loupe-listen .loupe-ap { transform: scale(1.3); }
+.loupe-think .loupe-ap { animation: loupe-spin 1.4s linear infinite; }
+@keyframes loupe-spin { from { transform: scale(0.72) rotate(0deg); } to { transform: scale(0.72) rotate(360deg); } }
+.loupe .loupe-pupil { transition: transform 0.6s ease, opacity 0.2s; }
+.loupe .loupe-smile { opacity: 0; transition: opacity 0.2s; }
+.loupe-happy .loupe-ap { transform: scale(0); }
+.loupe-happy .loupe-pupil { opacity: 0; }
+.loupe-happy .loupe-smile { opacity: 1; }
+.loupe-happy svg { animation: loupe-hop 0.5s ease; }
+@keyframes loupe-hop { 35% { transform: translateY(-4px); } }
+.loupe .loupe-prop { opacity: 0; transform: scale(0.3) rotate(-20deg); transform-box: fill-box; transform-origin: center; transition: opacity 0.2s, transform 0.45s cubic-bezier(0.3, 1.7, 0.5, 1); }
+.loupe[data-dept="edit"] .loupe-prop-edit, .loupe[data-dept="sound"] .loupe-prop-sound, .loupe[data-dept="color"] .loupe-prop-color { opacity: 1; transform: none; }
+.loupe-think[data-dept="sound"] .loupe-prop-sound { animation: loupe-bop 0.7s ease-in-out infinite; }
+.loupe-think[data-dept="edit"] .loupe-prop-edit, .loupe-think[data-dept="color"] .loupe-prop-color { animation: loupe-wig 1s ease-in-out infinite; }
+@keyframes loupe-wig { 30% { transform: rotate(-12deg); } 70% { transform: rotate(9deg); } }
+@keyframes loupe-bop { 50% { transform: translateY(-1.2px); } }
+.loupe-ticklish:not(.loupe-3d-on):hover svg { animation: loupe-squirm 0.32s ease-in-out infinite; }
+@keyframes loupe-squirm { 25% { transform: rotate(-9deg) translateY(-1px); } 75% { transform: rotate(9deg) translateY(-1px); } }
+.loupe-giggle {
+  position: absolute; left: 62%; bottom: 92%; z-index: 3; white-space: nowrap;
+  font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0; color: var(--text); background: #fff;
+  padding: 6px 9px; border-radius: 10px 10px 10px 3px; box-shadow: 0 0 0 1px var(--line), var(--lift-sm);
+  pointer-events: none; animation: loupe-giggle 1.3s ease-out forwards;
+}
+@keyframes loupe-giggle { 0% { opacity: 0; transform: translateY(6px) scale(0.8); } 15% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+.loupe.loupe-3d-on > svg { visibility: hidden; }
+.loupe canvas.loupe-canvas { position: absolute; pointer-events: none; z-index: 1; }

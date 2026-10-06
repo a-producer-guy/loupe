@@ -11,7 +11,7 @@ import * as schema from "../../src/lib/db/schema";
 export const MIGRATIONS = {
   migrationsFolder: path.join(__dirname, "../../db/migrations"),
   migrationsSchema: "drizzle",
-  migrationsTable: "__footage_migrations",
+  migrationsTable: "__loupe_migrations",
 };
 
 export async function createTestDb() {

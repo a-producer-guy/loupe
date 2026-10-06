@@ -2,7 +2,8 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { findMember, safeNext } from "@/lib/auth";
+import { ensureMember, safeNext } from "@/lib/auth";
+import { afterSignIn } from "@/lib/security";
 import { getDb } from "@/lib/db/client";
 import { env } from "@/lib/env";
 import { clearWrongCodes, minutesLocked, recordWrongCode } from "@/lib/footage/sign-in-guard";
@@ -24,10 +25,6 @@ export async function sendLink(_prev: LoginState, form: FormData): Promise<Login
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const next = safeNext(form.get("next"));
   if (!EMAIL.test(email)) return { step: "email", email, next, error: "That doesn't look like an email address." };
-
-  if (!(await findMember(email))) {
-    return { step: "email", email, next, error: "That email isn't on the Reelarc team list yet. Ask Guy to add you." };
-  }
 
   const callback = new URL("/auth/callback", await appOrigin());
   if (next !== "/") callback.searchParams.set("next", next);
@@ -64,9 +61,9 @@ export async function verifyCode(_prev: LoginState, form: FormData): Promise<Log
   if (token.length < 6) return { step: "code", email, next, error: "Type all 6 digits from the email." };
   const wrong = { step: "code" as const, email, next, error: "That code didn't work. Use the newest email, or ask for a new link." };
 
-  // Only team members have codes to check, and each gets 5 tries per 15 minutes.
+  // Anyone can sign up, so every email gets 5 tries per 15 minutes.
   const db = getDb();
-  if (!EMAIL.test(email) || !(await findMember(email))) return wrong;
+  if (!EMAIL.test(email)) return wrong;
   const wait = await minutesLocked(db, email);
   if (wait > 0) {
     console.info(`Sign-in code for ${email} not checked: too many wrong codes, ${wait} min to wait.`);
@@ -86,5 +83,7 @@ export async function verifyCode(_prev: LoginState, form: FormData): Promise<Log
     return wrong;
   }
   await clearWrongCodes(db, email);
-  redirect(next);
+  // The first sign-in sets up the account, so the first page already has it.
+  await ensureMember(email, db);
+  redirect(afterSignIn(next));
 }

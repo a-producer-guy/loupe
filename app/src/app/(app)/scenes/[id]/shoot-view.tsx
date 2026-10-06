@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { CardsSidebar, CopyText, type ClipFilter } from "@/components/shoots/cards-sidebar";
 import { ClipPlayer } from "@/components/shoots/clip-player";
 import { ClipGrid, ClipTable } from "@/components/shoots/clip-views";
-import { DpChip, DpDialog } from "@/components/shoots/dp";
+import { Loupe } from "@/components/loupe/loupe";
 import { LutChip, LutDialog } from "@/components/shoots/luts";
 import { useRefreshWhenSettled } from "@/components/shoots/refresh";
 import { StatusHero } from "@/components/shoots/status-hero";
@@ -49,7 +49,6 @@ export function ShootView({ initial }: { initial: ShootDetail }) {
   const [query, setQuery] = useState("");
   const [view, setView] = useViewMode("footage.view");
   const [lutOpen, setLutOpen] = useState(false);
-  const [dpOpen, setDpOpen] = useState(false);
   const [playingId, setPlayingId] = useState<number | null>(null);
 
   const retry = useCallback(
@@ -119,7 +118,7 @@ export function ShootView({ initial }: { initial: ShootDetail }) {
       {({ dragging, choose }) => (
         <>
           <TopBar
-            crumbs={[{ label: "Today", href: "/" }, { label: shoot.name }]}
+            crumbs={[{ label: "Your scenes", href: "/scenes" }, { label: shoot.name }]}
             actions={
               <>
                 {shoot.files.uploaded > 0 &&
@@ -156,7 +155,6 @@ export function ShootView({ initial }: { initial: ShootDetail }) {
                   <h1 className="text-[30px] font-semibold leading-tight tracking-tight">{shoot.name}</h1>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[14px] text-muted">
                     <span>{longDate(shoot.shootDate)}</span>
-                    <DpChip dpName={shoot.dpName} onClick={() => setDpOpen(true)} />
                     <LutChip shoot={shoot} onClick={() => setLutOpen(true)} />
                     <span className="text-faint lg:hidden">·</span>
                     <span className="lg:hidden">
@@ -166,6 +164,8 @@ export function ShootView({ initial }: { initial: ShootDetail }) {
                 </div>
 
                 <StatusHero shoot={shoot} progress={progress} onChoose={choose} onStopCard={stopCard} onRetryAll={() => retry()} />
+
+                {shoot.files.total > 0 && <CutCard ready={shoot.proxiesReady} />}
 
                 {shoot.problems.length > 0 && <Problems shoot={shoot} onForget={forget} />}
 
@@ -239,16 +239,6 @@ export function ShootView({ initial }: { initial: ShootDetail }) {
               onClose={() => setPlayingId(null)}
             />
           )}
-          <DpDialog
-            open={dpOpen}
-            onClose={() => setDpOpen(false)}
-            shootId={shoot.id}
-            dpName={shoot.dpName}
-            onSaved={(name) => {
-              toast(name ? { tone: "good", title: "DP saved", detail: `${name} shot ${shoot.name}.` } : { tone: "info", title: "DP removed" });
-              void refresh();
-            }}
-          />
           <LutDialog
             open={lutOpen}
             onClose={() => setLutOpen(false)}
@@ -261,7 +251,7 @@ export function ShootView({ initial }: { initial: ShootDetail }) {
               toast(
                 result.remade
                   ? { tone: "info", title: "LUT changed", detail: `Re-making ${result.remade === 1 ? "1 proxy" : `${result.remade} proxies`} with it. The stills update as each one finishes.` }
-                  : { tone: "good", title: "LUT saved", detail: "New proxies from this shoot will have it." },
+                  : { tone: "good", title: "LUT saved", detail: "New proxies from this scene will have it." },
               );
               void refresh();
             }}
@@ -339,10 +329,10 @@ function DropOverlay({ name }: { name: string }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center bg-bg/80 p-6 backdrop-blur-sm">
       <svg className="absolute inset-4 size-[calc(100%-32px)]" aria-hidden>
-        <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="20" fill="none" stroke="var(--pink)" strokeWidth="2" strokeDasharray="10 8" className="animate-dash" />
+        <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx="20" fill="none" stroke="var(--tally)" strokeWidth="2" strokeDasharray="10 8" className="animate-dash" />
       </svg>
       <div className="animate-rise text-center">
-        <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-pink text-white shadow-[0_16px_40px_-10px_rgba(255,61,138,0.7)]">
+        <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-pink text-white shadow-lift">
           <CloudUpload className="size-8" />
         </div>
         <p className="mt-5 text-[22px] font-semibold">Drop to upload to {name}</p>
@@ -352,3 +342,23 @@ function DropOverlay({ name }: { name: string }) {
   );
 }
 
+
+/**
+ * Where Loupe's first cut of this scene will play. Cutting in the cloud comes in stage 2; until
+ * then Loupe says so, and waits with the proxies.
+ */
+function CutCard({ ready }: { ready: boolean }) {
+  return (
+    <div className="mt-5 flex items-center gap-5 rounded-2xl bg-surface p-5 shadow-lift-sm ring-1 ring-line">
+      <Loupe size={56} mood={ready ? "idle" : "think"} dept="edit" label="Loupe" />
+      <div className="min-w-0">
+        <p className="text-[16px] font-semibold tracking-[-0.02em]">{ready ? "Loupe is ready for this scene" : "Loupe is watching the takes come in"}</p>
+        <p className="mt-0.5 text-[13.5px] text-muted">
+          {ready
+            ? "Every take has its proxy. Cutting scenes in the cloud is coming next: Loupe will line the takes up with your script and hand you a first cut here."
+            : "Once every take has its proxy, this is where your first cut will appear."}
+        </p>
+      </div>
+    </div>
+  );
+}

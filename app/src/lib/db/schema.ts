@@ -1,7 +1,10 @@
-// Footage tables. They live in the Reelarc backend's Supabase database, so
-// every table is prefixed footage_ and nothing here touches the backend's own
-// tables. The app and the proxy worker connect as the footage_app role, which
-// can only reach these tables (see db/migrations).
+// Loupe's tables, in Loupe's own Supabase project. Every table is prefixed loupe_.
+// The app and the proxy worker connect as the loupe_app role, which can only
+// reach these tables (see db/migrations).
+//
+// Loupe has many customers, so everything a customer owns hangs off an account:
+// its people (members), its scenes (projects) and its LUTs. Every page and API
+// route checks that what it touches belongs to the signed-in member's account.
 
 import { sql } from "drizzle-orm";
 import {
@@ -23,25 +26,44 @@ import {
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
-// Everything the app and worker may do with a footage table, and nothing else.
-const footageAppAccess = () =>
-  pgPolicy("footage_app_all", { for: "all", to: "footage_app", using: sql`true`, withCheck: sql`true` });
+// Everything the app and worker may do with a Loupe table, and nothing else.
+const appAccess = () =>
+  pgPolicy("loupe_app_all", { for: "all", to: "loupe_app", using: sql`true`, withCheck: sql`true` });
 
-export const MEMBER_ROLES = ["admin", "editor", "social"] as const;
+export const PLANS = ["free", "indie", "pro", "studio"] as const;
+export type Plan = (typeof PLANS)[number];
 
-/** Who may sign in to the footage app. Phase 1 only has admins. */
-export const members = pgTable(
-  "footage_members",
+/** A customer: one filmmaker, editor or studio. Created the first time someone signs in. */
+export const accounts = pgTable(
+  "loupe_accounts",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    name: text("name").notNull(),
+    plan: text("plan", { enum: PLANS }).notNull().default("free"),
+    createdAt: createdAt(),
+  },
+  (t) => [check("loupe_accounts_plan_valid", sql`${t.plan} in ('free', 'indie', 'pro', 'studio')`), appAccess()],
+).enableRLS();
+
+export const MEMBER_ROLES = ["owner", "editor", "director", "viewer"] as const;
+
+/** A person who can sign in, and the account they belong to. One account per email. */
+export const members = pgTable(
+  "loupe_members",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    accountId: bigint("account_id", { mode: "number" })
+      .notNull()
+      .references(() => accounts.id),
     email: text("email").notNull().unique(),
-    role: text("role", { enum: MEMBER_ROLES }).notNull().default("admin"),
+    role: text("role", { enum: MEMBER_ROLES }).notNull().default("owner"),
     createdAt: createdAt(),
   },
   (t) => [
-    check("footage_members_email_lowercase", sql`${t.email} = lower(${t.email})`),
-    check("footage_members_role_valid", sql`${t.role} in ('admin', 'editor', 'social')`),
-    footageAppAccess(),
+    index("loupe_members_account_idx").on(t.accountId),
+    check("loupe_members_email_lowercase", sql`${t.email} = lower(${t.email})`),
+    check("loupe_members_role_valid", sql`${t.role} in ('owner', 'editor', 'director', 'viewer')`),
+    appAccess(),
   ],
 ).enableRLS();
 
@@ -50,24 +72,27 @@ export const members = pgTable(
  * minutes, that email has to wait. The count starts again with the first wrong code after that.
  */
 export const signInAttempts = pgTable(
-  "footage_sign_in_attempts",
+  "loupe_sign_in_attempts",
   {
     email: text("email").primaryKey(),
     failures: integer("failures").notNull().default(0),
     windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
   },
-  () => [footageAppAccess()],
+  () => [appAccess()],
 ).enableRLS();
 
 /**
- * The team's LUTs (.cube files), kept in B2 under LUTs/. A shoot and, where a
+ * An account's LUTs (.cube files), kept in B2 under LUTs/. A scene and, where a
  * card came from another camera, a card point at one; the proxy worker bakes
  * it into that footage's proxies.
  */
 export const luts = pgTable(
-  "footage_luts",
+  "loupe_luts",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    accountId: bigint("account_id", { mode: "number" })
+      .notNull()
+      .references(() => accounts.id),
     name: text("name").notNull(),
     storageKey: text("storage_key").notNull().unique(),
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
@@ -76,37 +101,41 @@ export const luts = pgTable(
     createdBy: text("created_by"),
     createdAt: createdAt(),
   },
-  () => [footageAppAccess()],
+  (t) => [index("loupe_luts_account_idx").on(t.accountId), appAccess()],
 ).enableRLS();
 
 export const PROJECT_STATUSES = ["scheduled", "uploading", "uploaded", "delivered", "purged"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
-/** One shoot. The id is part of its B2 folder name (2026-09-23_jane-doe_p1042). */
+/**
+ * One scene: the footage of one shoot, its proxies and (from stage 2) its cut. Called a project in
+ * the code. The id is part of its B2 folder name (2026-09-23_the-offer_p1042).
+ */
 export const projects = pgTable(
-  "footage_projects",
+  "loupe_projects",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity({ startWith: 1001 }),
+    accountId: bigint("account_id", { mode: "number" })
+      .notNull()
+      .references(() => accounts.id),
     name: text("name").notNull(),
     shootDate: date("shoot_date", { mode: "string" }).notNull(),
     // Fixed when the shoot is created, so renaming a shoot never moves files.
     storagePrefix: text("storage_prefix").notNull().unique(),
     status: text("status", { enum: PROJECT_STATUSES }).notNull().default("scheduled"),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
-    // The LUT the shoot was filmed with, for every card unless a card says otherwise.
+    // The LUT the scene was filmed with, for every card unless a card says otherwise.
     lutId: bigint("lut_id", { mode: "number" }).references(() => luts.id),
-    // The DP (director of photography) who shot it. Typed in, not a login: DPs don't sign in.
-    dpName: text("dp_name"),
     createdBy: text("created_by"),
     createdAt: createdAt(),
   },
   (t) => [
     check(
-      "footage_projects_status_valid",
+      "loupe_projects_status_valid",
       sql`${t.status} in ('scheduled', 'uploading', 'uploaded', 'delivered', 'purged')`,
     ),
-    index("footage_projects_shoot_date_idx").on(t.shootDate),
-    footageAppAccess(),
+    index("loupe_projects_account_idx").on(t.accountId, t.shootDate),
+    appAccess(),
   ],
 ).enableRLS();
 
@@ -118,7 +147,7 @@ export type FileStatus = (typeof FILE_STATUSES)[number];
  * with "Raw/"). A file only counts as safe once its size in B2 was checked.
  */
 export const files = pgTable(
-  "footage_files",
+  "loupe_files",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     projectId: bigint("project_id", { mode: "number" })
@@ -144,11 +173,11 @@ export const files = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex("footage_files_project_path_idx").on(t.projectId, t.path),
-    index("footage_files_project_card_idx").on(t.projectId, t.card),
-    check("footage_files_status_valid", sql`${t.status} in ('pending', 'uploading', 'uploaded', 'unreadable')`),
-    check("footage_files_size_valid", sql`${t.sizeBytes} >= 0`),
-    footageAppAccess(),
+    uniqueIndex("loupe_files_project_path_idx").on(t.projectId, t.path),
+    index("loupe_files_project_card_idx").on(t.projectId, t.card),
+    check("loupe_files_status_valid", sql`${t.status} in ('pending', 'uploading', 'uploaded', 'unreadable')`),
+    check("loupe_files_size_valid", sql`${t.sizeBytes} >= 0`),
+    appAccess(),
   ],
 ).enableRLS();
 
@@ -157,7 +186,7 @@ export const files = pgTable(
  * camera). A null lutId means that card has no LUT at all.
  */
 export const cardLuts = pgTable(
-  "footage_card_luts",
+  "loupe_card_luts",
   {
     projectId: bigint("project_id", { mode: "number" })
       .notNull()
@@ -166,7 +195,7 @@ export const cardLuts = pgTable(
     lutId: bigint("lut_id", { mode: "number" }).references(() => luts.id),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.card] }), footageAppAccess()],
+  (t) => [primaryKey({ columns: [t.projectId, t.card] }), appAccess()],
 ).enableRLS();
 
 /** Written by the worker (see worker/src/proxy.ts describeMedia). */
@@ -186,7 +215,7 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 
 /** One proxy to make per raw video clip. The worker claims queued rows. */
 export const proxyJobs = pgTable(
-  "footage_proxy_jobs",
+  "loupe_proxy_jobs",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     fileId: bigint("file_id", { mode: "number" })
@@ -222,12 +251,12 @@ export const proxyJobs = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    index("footage_proxy_jobs_queue_idx").on(t.status, t.runAfter),
-    index("footage_proxy_jobs_project_idx").on(t.projectId),
+    index("loupe_proxy_jobs_queue_idx").on(t.status, t.runAfter),
+    index("loupe_proxy_jobs_project_idx").on(t.projectId),
     check(
-      "footage_proxy_jobs_status_valid",
+      "loupe_proxy_jobs_status_valid",
       sql`${t.status} in ('queued', 'running', 'done', 'failed', 'skipped')`,
     ),
-    footageAppAccess(),
+    appAccess(),
   ],
 ).enableRLS();

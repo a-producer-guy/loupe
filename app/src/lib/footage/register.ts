@@ -5,7 +5,8 @@
 import { and, eq } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { files, projects } from "@/lib/db/schema";
-import { cardNameCandidates, cleanRelativePath, isHiddenPath, isVideoPath, keyFits, rawPath } from "./names";
+import { accountPlan, accountUsage, PLAN_LIMITS } from "./access";
+import { cardNameCandidates, cleanRelativePath, formatBytes, isHiddenPath, isVideoPath, keyFits, rawPath } from "./names";
 
 export type DroppedFile = { path: string; size: number; lastModified: number };
 
@@ -49,10 +50,22 @@ export async function registerDrop(
     // One drop at a time per shoot, so two cards called "Untitled" dropped
     // together can't both claim the same folder.
     const [project] = await tx.select().from(projects).where(eq(projects.id, projectId)).for("update");
-    if (!project) throw new DropError("That shoot doesn't exist any more.");
+    if (!project) throw new DropError("That scene doesn't exist any more.");
 
     const results: RegisteredGroup[] = [];
     for (const group of groups) results.push(await registerGroup(tx, project, group, uploadedBy));
+
+    // The free plan's footage limit, checked with this drop counted (a card dropped again isn't
+    // counted twice). Over it, the whole drop is undone and nothing uploads.
+    const limit = PLAN_LIMITS[await accountPlan(tx, project.accountId)].bytes;
+    if (Number.isFinite(limit)) {
+      const used = await accountUsage(tx, project.accountId);
+      if (used.bytes > limit) {
+        throw new DropError(
+          `That's more footage than the free plan holds (${formatBytes(limit)} in all). Pick a plan to upload this scene, or drop fewer cards.`,
+        );
+      }
+    }
 
     const anythingToUpload = results.some((g) => g.problems.length > 0 || g.files.some((f) => f.state !== "done"));
     if (anythingToUpload && (project.status === "scheduled" || project.status === "uploaded")) {
@@ -138,7 +151,7 @@ async function registerGroup(tx: Db, project: Project, group: DropGroup, uploade
       break;
     }
   }
-  if (card === undefined) throw new DropError(`There are too many cards called "${cardName}" on this shoot.`);
+  if (card === undefined) throw new DropError(`There are too many cards called "${cardName}" in this scene.`);
 
   // Folders that couldn't be read before and were read this time.
   const stillUnreadable = new Set(problems.map((p) => rawPath(card!, cleanRelativePath(p.path) ?? p.path)));

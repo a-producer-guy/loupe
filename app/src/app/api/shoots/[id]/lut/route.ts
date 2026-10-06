@@ -1,10 +1,9 @@
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
-import { projects } from "@/lib/db/schema";
+import { ownedLut, ownedShoot } from "@/lib/footage/access";
 import { jsonError, readJson, route, shootIdFrom } from "@/lib/api";
-import { getLut, lutFileName, setCardLut, setShootLut } from "@/lib/footage/luts";
+import { lutFileName, setCardLut, setShootLut } from "@/lib/footage/luts";
 import { copyObject } from "@/lib/storage";
 
 const Choice = z.object({
@@ -17,15 +16,15 @@ const Choice = z.object({
 
 /** Sets the LUT a shoot, or one of its cards, was filmed with. Proxies already made are re-made with it. */
 export const PUT = route(async (request, ctx: RouteContext<"/api/shoots/[id]/lut">) => {
-  const member = await apiMember("admin");
+  const member = await apiMember("write");
   if (member instanceof Response) return member;
   const id = await shootIdFrom(ctx.params);
   const db = getDb();
-  const [shoot] = id ? await db.select().from(projects).where(eq(projects.id, id)) : [];
-  if (!shoot) return jsonError(404, "That shoot doesn't exist.");
+  const shoot = await ownedShoot(db, member, id);
+  if (!shoot) return jsonError(404, "That scene doesn't exist.");
   const body = await readJson(request, Choice);
   if (body instanceof Response) return body;
-  const lut = body.lutId === null ? null : await getLut(db, body.lutId);
+  const lut = body.lutId === null ? null : await ownedLut(db, member, body.lutId);
   if (body.lutId !== null && !lut) return jsonError(404, "That LUT doesn't exist.");
 
   const remade =

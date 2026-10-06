@@ -198,9 +198,9 @@ export function LutDialog({
     >
       <div className="space-y-5">
         <div>
-          <p className="mb-1.5 text-[12.5px] text-muted">Whole shoot</p>
+          <p className="mb-1.5 text-[12.5px] text-muted">Whole scene</p>
           <LutSelect
-            label="The shoot's LUT"
+            label="The scene's LUT"
             value={shoot.lut?.id ?? null}
             luts={luts}
             onUploaded={add}
@@ -232,7 +232,7 @@ export function LutDialog({
           </div>
         )}
         <p className="text-[12.5px] leading-relaxed text-faint">
-          Proxies already made are re-made with the new LUT by themselves. The LUT file is also saved in the shoot&apos;s LUTs folder
+          Proxies already made are re-made with the new LUT by themselves. The LUT file is also saved in the scene&apos;s LUTs folder
           and comes with every download, so the editor can apply the same look to the originals.
         </p>
       </div>

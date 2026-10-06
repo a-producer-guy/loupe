@@ -32,10 +32,10 @@ describe("security", () => {
   });
 
   test("database connections to Supabase are encrypted and checked against Supabase's certificate", () => {
-    const tls = tlsFor("postgresql://footage_app.ref:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres");
+    const tls = tlsFor("postgresql://loupe_app.ref:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres");
     assert.ok(tls && tls.rejectUnauthorized && tls.servername === "aws-0-us-east-1.pooler.supabase.com");
     assert.match(tls.ca, /^-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----$/);
-    assert.equal(tlsFor("postgres://footage_app:pw@localhost:54329/postgres"), false, "local test databases have no TLS");
+    assert.equal(tlsFor("postgres://loupe_app:pw@localhost:54329/postgres"), false, "local test databases have no TLS");
   });
 
   test("a sign-in code can't be guessed: 5 wrong ones per 15 minutes per email", async () => {
@@ -47,10 +47,10 @@ describe("security", () => {
     assert.equal(await minutesLocked(db, email), 15, "the 5th locks it for the rest of the 15 minutes");
     assert.equal(await minutesLocked(db, "someone@reelarc.com"), 0, "other people aren't affected");
 
-    await db.execute(sql`update footage_sign_in_attempts set window_start = now() - interval '16 minutes'`);
+    await db.execute(sql`update loupe_sign_in_attempts set window_start = now() - interval '16 minutes'`);
     assert.equal(await minutesLocked(db, email), 0, "15 minutes later it's open again");
     await recordWrongCode(db, email);
-    const [row] = (await db.execute(sql`select failures from footage_sign_in_attempts`)).rows as { failures: number }[];
+    const [row] = (await db.execute(sql`select failures from loupe_sign_in_attempts`)).rows as { failures: number }[];
     assert.equal(row.failures, 1, "and the count starts over");
 
     await clearWrongCodes(db, email);

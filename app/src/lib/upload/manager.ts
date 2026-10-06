@@ -490,7 +490,7 @@ export class UploadManager {
           await sleep(backoff(attempt));
           continue;
         }
-        throw new ApiError("Couldn't reach Reelarc Footage. Check the internet connection.", 0, "network");
+        throw new ApiError("Couldn't reach Loupe. Check the internet connection.", 0, "network");
       }
       const data = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
       if (response.ok) {

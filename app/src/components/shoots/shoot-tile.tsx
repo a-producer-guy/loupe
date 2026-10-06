@@ -15,7 +15,7 @@ import { Cover } from "./cover";
 
 type Label = { tone: Tone; text: string; short: string; pulse?: boolean };
 
-/** Where a shoot stands, for both the card and the row: server checks plus this tab's live uploads. */
+/** Where a scene stands, for both the card and the row: server checks plus this tab's live uploads. */
 function useShootStatus(shoot: ShootSummary, onChanged: () => void) {
   const progress = useShootProgress(shoot.id);
   useRefreshWhenSettled(progress.active, progress.filesDone, onChanged);
@@ -34,8 +34,8 @@ function useShootStatus(shoot: ShootSummary, onChanged: () => void) {
     const text = progress.retrying ? "Reconnecting" : "Uploading";
     status = { tone: "pink", text, short: `${text} ${Math.round(pct * 100)}%`, pulse: true };
   } else if (empty) status = null;
-  else if (shoot.safeToWipe) status = { tone: "good", text: "Safe to wipe", short: "Safe to wipe" };
-  else if (shoot.files.problems > 0) status = { tone: "bad", text: "Don't wipe", short: "Don't wipe" };
+  else if (shoot.safeToWipe) status = { tone: "good", text: "Uploaded", short: "Uploaded" };
+  else if (shoot.files.problems > 0) status = { tone: "bad", text: "Files missing", short: "Files missing" };
   else status = { tone: "warn", text: "Incomplete", short: "Incomplete" };
 
   let proxies: Label | null = null;
@@ -52,36 +52,35 @@ function useShootStatus(shoot: ShootSummary, onChanged: () => void) {
 }
 
 /**
- * A shoot on the Today screen, drawn like a Frame.io project card. The whole
- * card is also where that shoot's camera cards get dropped.
+ * A scene on Your scenes. The whole card is also where more of that scene's
+ * camera cards can be dropped.
  */
 export function ShootTile({ shoot, onChanged }: { shoot: ShootSummary; onChanged: () => void }) {
   const { progress, busy, uploading, empty, pct, cards, status, proxies, left, done } = useShootStatus(shoot, onChanged);
   const p = shoot.proxies;
 
-  const dp = shoot.dpName ? `DP ${shoot.dpName}` : null;
   let meta: string;
   if (uploading) meta = `${formatBytes(progress.bytesDone)} of ${formatBytes(progress.bytes)}${left ? ` · ${left}` : ""}`;
-  else if (empty) meta = [dp, "No cards yet"].filter(Boolean).join(" · ");
-  else meta = [dp, formatBytes(shoot.files.bytesTotal), p.videos ? `${p.videos} clip${p.videos === 1 ? "" : "s"}` : null, `${cards} card${cards === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
+  else if (empty) meta = "No footage yet";
+  else meta = [formatBytes(shoot.files.bytesTotal), p.videos ? `${p.videos} take${p.videos === 1 ? "" : "s"}` : null, `${cards} card${cards === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
 
   return (
     <DropZone shootId={shoot.id} shootName={shoot.name} className="animate-rise">
       {({ dragging, choose }) => (
         <Link
-          href={`/shoots/${shoot.id}`}
-          className={`group block overflow-hidden rounded-xl border bg-surface transition duration-200 ${
+          href={`/scenes/${shoot.id}`}
+          className={`group block overflow-hidden rounded-2xl bg-surface shadow-lift-sm ring-1 transition duration-200 ${
             dragging
-              ? "scale-[1.015] border-pink shadow-[0_0_0_4px_var(--pink-soft),0_24px_60px_-20px_rgba(255,61,138,0.45)]"
-              : "border-line hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_24px_50px_-24px_rgba(0,0,0,0.9)]"
+              ? "scale-[1.015] ring-2 ring-tally shadow-[0_0_0_6px_var(--tally-soft)]"
+              : "ring-line hover:-translate-y-0.5 hover:shadow-lift hover:ring-line-strong"
           }`}
         >
-          <div className="relative aspect-video overflow-hidden bg-[#0b0c10]">
+          <div className="relative aspect-video overflow-hidden bg-surface-2">
             {empty ? (
-              <div className="absolute inset-3 grid place-items-center rounded-lg border border-dashed border-line-strong transition group-hover:border-faint">
+              <div className="absolute inset-3 grid place-items-center rounded-xl border border-dashed border-line-strong transition group-hover:border-faint">
                 <div className="text-center">
                   <CloudUpload className="mx-auto size-7 text-faint" strokeWidth={1.6} />
-                  <p className="mt-2 text-[13.5px] font-medium text-muted">Drop cards here</p>
+                  <p className="mt-2 text-[13.5px] font-medium text-muted">Drop footage here</p>
                   <ChooseFolder onChoose={choose} className="mt-2" />
                 </div>
               </div>
@@ -120,7 +119,7 @@ export function ShootTile({ shoot, onChanged }: { shoot: ShootSummary; onChanged
               </span>
             )}
             {done && (
-              <span className="absolute bottom-2.5 left-2.5 grid size-6 place-items-center rounded-full bg-good text-black">
+              <span className="absolute bottom-2.5 left-2.5 grid size-6 place-items-center rounded-full bg-good text-white">
                 <Check className="size-3.5" strokeWidth={3} />
               </span>
             )}
@@ -138,12 +137,11 @@ export function ShootTile({ shoot, onChanged }: { shoot: ShootSummary; onChanged
   );
 }
 
-export function NewShootTile({ onClick }: { onClick: () => void }) {
+export function NewShootTile() {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col overflow-hidden rounded-xl border border-dashed border-line-strong text-left transition hover:border-pink/50 hover:bg-surface/50"
+    <Link
+      href="/scenes/new"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-dashed border-line-strong text-left transition hover:border-faint hover:bg-surface/60"
     >
       <div className="grid aspect-video w-full place-items-center">
         <span className="grid size-11 place-items-center rounded-full bg-surface-2 text-muted transition group-hover:bg-pink group-hover:text-white">
@@ -151,19 +149,18 @@ export function NewShootTile({ onClick }: { onClick: () => void }) {
         </span>
       </div>
       <div className="px-3.5 pb-3.5 pt-3">
-        <p className="text-[15px] font-semibold text-muted group-hover:text-text">New shoot</p>
-        <p className="mt-0.5 text-[12.5px] text-faint">Name, date and DP, then drop the cards on it</p>
+        <p className="text-[15px] font-semibold text-muted group-hover:text-text">New scene</p>
+        <p className="mt-0.5 text-[12.5px] text-faint">Drop the folder from the shoot</p>
       </div>
-    </button>
+    </Link>
   );
 }
 
-// ---- List view: the same shoots as rows, like Frame.io's list layout. ----
+// ---- List view: the same scenes as rows. ----
 
-// On a phone the row is just the shoot, with its status in the line under the name.
-// The DP gets its own column once there's room for it; until then it's in that line too.
+// On a phone the row is just the scene, with its status in the line under the name.
 const COLUMNS =
-  "grid grid-cols-1 items-center gap-x-4 md:grid-cols-[minmax(0,2.4fr)_minmax(150px,1.2fr)_minmax(110px,1fr)_64px_72px_80px] lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(150px,1.2fr)_minmax(110px,1fr)_64px_72px_80px]";
+  "grid grid-cols-1 items-center gap-x-4 md:grid-cols-[minmax(0,2.4fr)_minmax(150px,1.2fr)_minmax(110px,1fr)_64px_72px_80px]";
 
 const TONE_TEXT: Record<Tone, string> = {
   neutral: "text-muted",
@@ -177,13 +174,12 @@ const TONE_TEXT: Record<Tone, string> = {
 /** The list's frame: column titles, then the rows (and group headings) inside. */
 export function ShootList({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface/40">
-      <div className={`${COLUMNS} border-b border-line bg-surface/70 px-4 py-2.5 text-[12px] font-medium text-faint`}>
-        <span>Shoot</span>
-        <span className="hidden lg:block">DP</span>
+    <div className="overflow-hidden rounded-2xl bg-surface shadow-lift-sm ring-1 ring-line">
+      <div className={`${COLUMNS} border-b border-line bg-panel px-4 py-2.5 text-[12px] font-medium text-faint`}>
+        <span>Scene</span>
         <span className="hidden md:block">Status</span>
         <span className="hidden md:block">Proxies</span>
-        <span className="hidden text-right md:block">Clips</span>
+        <span className="hidden text-right md:block">Takes</span>
         <span className="hidden text-right md:block">Runtime</span>
         <span className="hidden text-right md:block">Size</span>
       </div>
@@ -192,7 +188,7 @@ export function ShootList({ children }: { children: ReactNode }) {
   );
 }
 
-/** "Today", "Coming up", "Earlier": a divider inside the list. */
+/** A divider inside the list. */
 export function ShootListGroup({ title, count, first }: { title: string; count: number; first?: boolean }) {
   return (
     <div className={`flex items-baseline gap-2 bg-bg/60 px-4 pb-2 text-[13px] font-semibold ${first ? "pt-3" : "pt-6"}`}>
@@ -209,11 +205,11 @@ export function ShootRow({ shoot, onChanged }: { shoot: ShootSummary; onChanged:
     <DropZone shootId={shoot.id} shootName={shoot.name} className="animate-rise">
       {({ dragging, choose }) => (
         <Link
-          href={`/shoots/${shoot.id}`}
-          className={`${COLUMNS} relative px-4 py-2.5 transition-colors ${dragging ? "bg-pink/10 shadow-[inset_0_0_0_2px_var(--pink)]" : "hover:bg-surface-2/60"}`}
+          href={`/scenes/${shoot.id}`}
+          className={`${COLUMNS} relative px-4 py-2.5 transition-colors ${dragging ? "bg-tally-soft shadow-[inset_0_0_0_2px_var(--tally)]" : "hover:bg-surface-2/60"}`}
         >
           <div className="flex min-w-0 items-center gap-3.5">
-            <div className="relative aspect-video w-[72px] shrink-0 overflow-hidden rounded-md bg-[#0b0c10] md:w-[88px]">
+            <div className="relative aspect-video w-[72px] shrink-0 overflow-hidden rounded-md bg-surface-2 md:w-[88px]">
               {empty ? (
                 <div className="absolute inset-0 grid place-items-center rounded-md border border-dashed border-line-strong">
                   <CloudUpload className="size-4 text-faint" strokeWidth={1.8} />
@@ -227,7 +223,7 @@ export function ShootRow({ shoot, onChanged }: { shoot: ShootSummary; onChanged:
                 </div>
               )}
               {done && (
-                <span className="absolute bottom-1 left-1 grid size-4 place-items-center rounded-full bg-good text-black">
+                <span className="absolute bottom-1 left-1 grid size-4 place-items-center rounded-full bg-good text-white">
                   <Check className="size-2.5" strokeWidth={3.5} />
                 </span>
               )}
@@ -237,17 +233,14 @@ export function ShootRow({ shoot, onChanged }: { shoot: ShootSummary; onChanged:
               <p className="truncate text-[12.5px] text-faint">
                 {status && <span className={`font-medium md:hidden ${TONE_TEXT[status.tone]}`}>{status.short} · </span>}
                 {shortDate(shoot.shootDate)}
-                {shoot.dpName && <span className="lg:hidden"> · DP {shoot.dpName}</span>}
                 {cards > 0 && ` · ${cards} card${cards === 1 ? "" : "s"}`}
               </p>
             </div>
           </div>
 
-          <span className="hidden truncate text-[13px] text-muted lg:block">{shoot.dpName ?? <span className="text-faint">—</span>}</span>
-
           <div className="hidden min-w-0 flex-col items-start gap-1 md:flex">
             {dragging ? (
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold text-pink">
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold text-tally">
                 <CloudUpload className="size-4" /> Drop to upload
               </span>
             ) : empty ? (
@@ -292,16 +285,16 @@ export function ShootRow({ shoot, onChanged }: { shoot: ShootSummary; onChanged:
   );
 }
 
-export function NewShootRow({ onClick }: { onClick: () => void }) {
+export function NewShootRow() {
   return (
-    <button type="button" onClick={onClick} className="group flex w-full items-center gap-3.5 px-4 py-2.5 text-left transition-colors hover:bg-surface-2/60">
+    <Link href="/scenes/new" className="group flex w-full items-center gap-3.5 px-4 py-2.5 text-left transition-colors hover:bg-surface-2/60">
       <span className="grid aspect-video w-[72px] shrink-0 place-items-center rounded-md border border-dashed border-line-strong transition group-hover:border-pink/50 md:w-[88px]">
         <span className="grid size-6 place-items-center rounded-full bg-surface-2 text-muted transition group-hover:bg-pink group-hover:text-white">
           <Plus className="size-3.5" />
         </span>
       </span>
-      <span className="text-[14px] font-medium text-muted group-hover:text-text">New shoot</span>
-    </button>
+      <span className="text-[14px] font-medium text-muted group-hover:text-text">New scene</span>
+    </Link>
   );
 }
 
@@ -310,7 +303,7 @@ function ChooseFolder({ onChoose, className = "" }: { onChoose: () => void; clas
     <button
       type="button"
       onClick={(event) => {
-        // Inside a link: pick a folder without opening the shoot.
+        // Inside a link: pick a folder without opening the scene.
         event.preventDefault();
         event.stopPropagation();
         onChoose();
@@ -324,9 +317,9 @@ function ChooseFolder({ onChoose, className = "" }: { onChoose: () => void; clas
 
 function DragHint({ rounded, inset }: { rounded: number; inset: number }) {
   return (
-    <div className="absolute inset-0 grid place-items-center bg-pink/15 backdrop-blur-[1px]">
+    <div className="absolute inset-0 grid place-items-center bg-black/45 backdrop-blur-[1px]">
       <svg className="absolute" style={{ inset, width: `calc(100% - ${inset * 2}px)`, height: `calc(100% - ${inset * 2}px)` }} aria-hidden>
-        <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx={rounded} fill="none" stroke="var(--pink)" strokeWidth="2" strokeDasharray="8 6" className="animate-dash" />
+        <rect x="1" y="1" width="calc(100% - 2px)" height="calc(100% - 2px)" rx={rounded} fill="none" stroke="var(--tally)" strokeWidth="2" strokeDasharray="8 6" className="animate-dash" />
       </svg>
       <p className="flex items-center gap-2 text-[15px] font-semibold text-white">
         <CloudUpload className="size-5" /> Drop to upload

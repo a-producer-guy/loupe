@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, MailCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useActionState, useRef, useState, useSyncExternalStore } from "react";
-import { ReelarcMark } from "@/components/ui/brand";
+import { Loupe } from "@/components/loupe/loupe";
 import { buttonClass } from "@/components/ui/button";
 import { sendLink, verifyCode, type LoginState } from "./actions";
 import { OtpInput } from "./otp-input";
@@ -10,8 +10,8 @@ import { OtpInput } from "./otp-input";
 const field =
   "h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-[15px] text-text placeholder:text-faint transition focus:border-pink focus:outline-none focus:ring-4 focus:ring-pink-soft";
 
-// Reelarc's email runs on Google, so a shortcut to Gmail saves a step.
-const usesGmail = (email?: string) => /@(reelarc\.com|gmail\.com|googlemail\.com)$/i.test(email ?? "");
+// Gmail users get a shortcut straight to the email.
+const usesGmail = (email?: string) => /@(gmail\.com|googlemail\.com|reelarc\.com)$/i.test(email ?? "");
 const RESEND_SECONDS = 60;
 
 // A clock that ticks once a second, for the resend countdown.
@@ -42,18 +42,18 @@ export function LoginForm({ next, linkFailed }: { next: string; linkFailed: bool
   }
 
   return (
-    <form action={request} className="animate-rise">
-      <ReelarcMark className="size-10 text-text" />
-      <h1 className="mt-6 text-[26px] font-semibold tracking-tight">Welcome back</h1>
-      <p className="mt-2 text-[14.5px] text-muted">Sign in with your Reelarc email. No password needed.</p>
+    <form action={request} className="animate-rise text-center">
+      <Loupe size={72} mood="idle" label="Loupe" />
+      <h1 className="mt-5 text-[26px] font-semibold tracking-[-0.035em]">Sign in to Loupe</h1>
+      <p className="mt-2 text-[14.5px] text-muted">No password. We&apos;ll email you a link, and if you&apos;re new, the same link makes your account.</p>
       {linkFailed && !sent.error && (
-        <p className="mt-5 rounded-xl bg-warn-soft px-4 py-3 text-[13.5px] text-warn">
+        <p className="mt-5 rounded-xl bg-warn-soft px-4 py-3 text-left text-[13.5px] text-warn">
           That sign-in link didn&apos;t work. It may have expired or opened in another browser. Ask for a new one below.
         </p>
       )}
       <input type="hidden" name="next" value={next} />
-      <label className="mt-7 block">
-        <span className="mb-1.5 block text-[12.5px] text-muted">Work email</span>
+      <label className="mt-7 block text-left">
+        <span className="mb-1.5 block text-[12.5px] text-muted">Email</span>
         <input
           name="email"
           type="email"
@@ -61,7 +61,7 @@ export function LoginForm({ next, linkFailed }: { next: string; linkFailed: bool
           autoFocus
           autoComplete="email"
           defaultValue={sent.email}
-          placeholder="you@reelarc.com"
+          placeholder="you@studio.com"
           className={field}
         />
       </label>
@@ -106,19 +106,19 @@ function CodeStep({
 
   return (
     <div className="animate-rise">
-      <div className="grid size-12 place-items-center rounded-2xl bg-pink-soft text-pink">
-        <MailCheck className="size-6" />
+      <div className="text-center">
+        <Loupe size={72} mood="happy" label="Loupe" />
       </div>
-      <h1 className="mt-6 text-[26px] font-semibold tracking-tight">Check your email</h1>
-      <p className="mt-2 text-[14.5px] text-muted">
+      <h1 className="mt-5 text-center text-[26px] font-semibold tracking-[-0.035em]">Check your email</h1>
+      <p className="mt-2 text-center text-[14.5px] text-muted">
         We sent a sign-in link to <span className="font-medium text-text">{email}</span>. Click it on this computer and you&apos;re in.
       </p>
       {usesGmail(email) && (
         <a
-          href="https://mail.google.com/mail/u/0/#search/%22Reelarc+Footage%22+newer_than%3A1d"
+          href="https://mail.google.com/mail/u/0/#search/Loupe+newer_than%3A1d"
           target="_blank"
           rel="noreferrer"
-          className="mt-4 inline-flex items-center gap-1.5 text-[14px] font-medium text-text hover:text-pink"
+          className="mx-auto mt-4 flex w-fit items-center gap-1.5 text-[14px] font-medium text-text hover:text-tally"
         >
           <GmailIcon /> Open Gmail <ArrowRight className="size-3.5" />
         </a>
@@ -148,7 +148,7 @@ function CodeStep({
           <form action={onResend}>
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="next" value={next} />
-            <button className="font-medium text-text hover:text-pink">Send a new link</button>
+            <button className="font-medium text-text hover:text-tally">Send a new link</button>
           </form>
         )}
         <button type="button" onClick={onChangeEmail} className="text-muted hover:text-text">

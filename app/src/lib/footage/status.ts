@@ -43,7 +43,6 @@ export type ShootSummary = {
   shootDate: string;
   storagePrefix: string;
   /** Who shot it, when someone has said. */
-  dpName: string | null;
   status: ProjectStatus;
   files: FileCounts;
   cards: CardSummary[];
@@ -161,7 +160,6 @@ async function summarize(db: Db, rows: (typeof projects.$inferSelect)[], signVie
       name: project.name,
       shootDate: project.shootDate,
       storagePrefix: project.storagePrefix,
-      dpName: project.dpName,
       status: project.status,
       files: totals,
       cards,
@@ -183,25 +181,25 @@ async function summarize(db: Db, rows: (typeof projects.$inferSelect)[], signVie
 }
 
 /** Shoots dated between the two days (YYYY-MM-DD), newest first. */
-export async function listShoots(db: Db, fromDate: string, toDate: string, signView?: SignView): Promise<ShootSummary[]> {
+export async function listShoots(db: Db, accountId: number, fromDate: string, toDate: string, signView?: SignView): Promise<ShootSummary[]> {
   const rows = await db
     .select()
     .from(projects)
-    .where(and(gte(projects.shootDate, fromDate), lte(projects.shootDate, toDate)))
+    .where(and(eq(projects.accountId, accountId), gte(projects.shootDate, fromDate), lte(projects.shootDate, toDate)))
     .orderBy(desc(projects.shootDate), desc(projects.id));
   return summarize(db, rows, signView);
 }
 
-/** Every shoot, from any date, whose name, DP or date contains all the words searched for. Newest first. */
-export async function searchShoots(db: Db, query: string, signView?: SignView, limit = 60): Promise<ShootSummary[]> {
+/** Every scene in the account, from any date, whose name or date contains all the words searched for. Newest first. */
+export async function searchShoots(db: Db, accountId: number, query: string, signView?: SignView, limit = 60): Promise<ShootSummary[]> {
   const words = searchWords(query);
   if (words.length === 0) return [];
   // The same text as shootSearchText, built by the database.
-  const text = sql`lower(${projects.name} || ' ' || coalesce(${projects.dpName} || ' ', '') || to_char(${projects.shootDate}, 'YYYY-MM-DD FMMonth Mon FMDD') || ' p' || ${projects.id})`;
+  const text = sql`lower(${projects.name} || ' ' || to_char(${projects.shootDate}, 'YYYY-MM-DD FMMonth Mon FMDD') || ' p' || ${projects.id})`;
   const rows = await db
     .select()
     .from(projects)
-    .where(and(...words.map((word) => sql`strpos(${text}, ${word}) > 0`)))
+    .where(and(eq(projects.accountId, accountId), ...words.map((word) => sql`strpos(${text}, ${word}) > 0`)))
     .orderBy(desc(projects.shootDate), desc(projects.id))
     .limit(limit);
   return summarize(db, rows, signView);

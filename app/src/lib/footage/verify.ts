@@ -19,7 +19,7 @@ export async function verifyUpload(
   storedSize: (key: string) => Promise<number | null>,
 ): Promise<VerifyResult> {
   const [file] = await db.select().from(files).where(eq(files.storageKey, key));
-  if (!file) return { ok: false, reason: "unknown-file", message: "This file isn't part of any shoot." };
+  if (!file) return { ok: false, reason: "unknown-file", message: "This file isn't part of any scene." };
   if (file.status === "uploaded") return { ok: true };
 
   const size = await storedSize(key);
