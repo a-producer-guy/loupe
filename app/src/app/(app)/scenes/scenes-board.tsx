@@ -96,7 +96,7 @@ function Scenes({ scenes, view, onChanged, showNew }: { scenes: ShootSummary[]; 
 function FirstScene() {
   return (
     <div className="mx-auto mt-[8vh] max-w-xl animate-rise text-center">
-      <Loupe size={84} mood="idle" dept="edit" label="Loupe" />
+      <Loupe size={84} mood="idle" dept="edit" label="Loupe" three />
       <h1 className="mt-6 text-[40px] font-semibold leading-none tracking-[-0.05em] sm:text-[52px]">Drop your first scene.</h1>
       <p className="mx-auto mt-4 max-w-md text-[16px] text-muted">
         The whole folder from the shoot: camera cards, sound and the script. It uploads, makes editing proxies, and Loupe gets to work.

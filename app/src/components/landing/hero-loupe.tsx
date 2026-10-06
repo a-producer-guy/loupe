@@ -39,7 +39,7 @@ export function HeroLoupe() {
     <div className="relative grid min-h-[380px] place-items-center">
       <div className="absolute bottom-[54px] h-[22px] w-[62%] rounded-[50%] bg-[radial-gradient(closest-side,rgba(20,20,18,0.08),transparent)]" />
       <div className="grid justify-items-center gap-3">
-        <Loupe size={190} mood={mood} dept={HATS[index].dept} label="Loupe, your assistant editor" />
+        <Loupe size={190} mood={mood} dept={HATS[index].dept} label="Loupe, your assistant editor" three />
         <div className="relative z-10 mt-2 flex flex-wrap justify-center gap-1.5" role="group" aria-label="Loupe's modes">
           {HATS.map((hat, i) => (
             <button

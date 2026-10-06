@@ -82,7 +82,7 @@ export function NewScene({ planNeeded, free }: { planNeeded: boolean; free: bool
       >
         <div className="mx-auto grid w-full max-w-[1100px] gap-7 px-5 pb-16 pt-[6vh] sm:px-8">
           <div className="flex items-center gap-4">
-            <Loupe size={64} mood={busy ? "think" : dragging ? "listen" : step.kind === "error" ? "idle" : "idle"} dept="edit" label="Loupe" />
+            <Loupe size={64} mood={busy ? "think" : dragging ? "listen" : "idle"} dept="edit" label="Loupe" three />
             <p className="text-[15px] text-muted">
               Hi, I&apos;m <span className="font-medium text-text">Loupe</span>. I watch every take so you can direct.
             </p>

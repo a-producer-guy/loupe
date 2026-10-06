@@ -3,10 +3,11 @@
 // Loupe, the character: a small round body on two feet with one camera-aperture eye and a red
 // "recording" pupil. He shows how he's doing through the aperture (idle, listening, thinking,
 // happy), holds his department's prop (scissors, headphones, paintbrush) and giggles when the
-// pointer tickles him. Drawn in SVG on a 40 × 44 grid; the 3D version (loupe-3d.tsx) takes over
+// pointer tickles him. Drawn in SVG on a 40 × 44 grid; the 3D version (loupe-3d.ts) takes over
 // on bigger stages once it has drawn, with this drawing as its fallback.
 
 import { useEffect, useId, useRef, useState } from "react";
+import type { Loupe3D } from "./loupe-3d";
 
 export type LoupeMood = "idle" | "listen" | "think" | "happy";
 export type LoupeDept = "edit" | "sound" | "color" | "preview";
@@ -30,6 +31,7 @@ export function Loupe({
   ticklish = true,
   className = "",
   label,
+  three = false,
 }: {
   size?: number;
   mood?: LoupeMood;
@@ -38,8 +40,37 @@ export function Loupe({
   className?: string;
   /** Spoken name for screen readers; decorative (hidden) when left out. */
   label?: string;
+  /** The 3D Loupe, for big stages. The drawing stays until 3D has drawn, and returns if it fails. */
+  three?: boolean;
 }) {
   const pupil = useRef<SVGCircleElement>(null);
+  const host = useRef<HTMLSpanElement>(null);
+  const live = useRef<Loupe3D | null>(null);
+  const [threeOn, setThreeOn] = useState(false);
+  const latest = useRef({ mood, dept });
+
+  // Keep the 3D Loupe (once loaded) in the same mood and hat as the drawing.
+  useEffect(() => {
+    latest.current = { mood, dept };
+    live.current?.set(mood, dept);
+  }, [mood, dept]);
+
+  // The 3D Loupe loads only where asked for, after the page has drawn.
+  useEffect(() => {
+    if (!three || !host.current) return;
+    let gone = false;
+    void import("./loupe-3d").then(({ mountLoupe3D }) => {
+      if (gone || !host.current) return;
+      live.current = mountLoupe3D(host.current, size, () => setThreeOn(true), () => setThreeOn(false));
+      live.current?.set(latest.current.mood, latest.current.dept);
+    });
+    return () => {
+      gone = true;
+      live.current?.dispose();
+      live.current = null;
+    };
+  }, [three, size]);
+
   const [giggle, setGiggle] = useState<{ text: string; key: number } | null>(null);
   const lastGiggle = useRef(0);
   const id = useId();
@@ -57,6 +88,7 @@ export function Loupe({
 
   const tickle = () => {
     if (!ticklish) return;
+    live.current?.tickling(true);
     const now = performance.now();
     if (now - lastGiggle.current < 1400) return;
     lastGiggle.current = now;
@@ -67,10 +99,13 @@ export function Loupe({
   const pupilColor = dept ? DEPT_COLOR[dept] : "#E2452B";
   return (
     <span
-      className={`loupe loupe-${mood} ${ticklish ? "loupe-ticklish" : ""} ${className}`}
+      ref={host}
+      className={`loupe loupe-${mood} ${ticklish ? "loupe-ticklish" : ""} ${threeOn ? "loupe-3d-on" : ""} ${className}`}
       data-dept={dept}
       style={{ width: size, height: Math.round(size * 1.1) }}
       onPointerEnter={tickle}
+      onPointerMove={() => ticklish && live.current?.wiggle()}
+      onPointerLeave={() => live.current?.tickling(false)}
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

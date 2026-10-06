@@ -282,7 +282,7 @@ export default function Landing() {
 
         <section className="mx-auto max-w-[1160px] px-6 pb-14" aria-label="Get started">
           <div className="grid items-center gap-[30px] rounded-[28px] bg-surface p-7 shadow-lift sm:p-11 md:grid-cols-[auto_1fr_auto]">
-            <Loupe size={86} dept="edit" />
+            <Loupe size={86} dept="edit" three />
             <div>
               <h2 className="mb-1.5 text-[clamp(28px,3.4vw,42px)] font-semibold leading-none tracking-[-0.045em]">Drop your first scene.</h2>
               <p className="text-muted">It’s free. Loupe will be waiting.</p>
