@@ -49,8 +49,9 @@ Still in the Backdrop project (these replace Backdrop's old sign-in settings):
 2. **Authentication → Sign In / Providers**: keep **Allow new users to sign up** on (anyone with the link can start a free scene). Under **Email**, set **Email OTP Length** to **6**.
 3. **Authentication → Emails → SMTP Settings**: switch on **Enable Custom SMTP**, then **Save changes**.
    - Host `smtp.resend.com`, port `465`, username `resend` (exactly that)
-   - Password: a new Resend API key (Resend → API Keys → Create, name it "Supabase Loupe sign-in", sending access, domain reelarc.com)
-   - Sender email `loupe@reelarc.com`, sender name `Loupe`
+   - Password: a new Resend API key (Resend → API Keys → Create, name it "Supabase Loupe sign-in (editloupe)", sending access, domain editloupe.com)
+   - Sender email `hi@editloupe.com`, sender name `Loupe`
+   - editloupe.com is added in Resend → Domains; Resend put its records into Vercel's DNS for the domain by itself.
 4. **Authentication → Emails → Templates**: put this in both **Magic link or OTP** and **Confirm sign up**.
 
    Subject: `Your Loupe sign-in link`
