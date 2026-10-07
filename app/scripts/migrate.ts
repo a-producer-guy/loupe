@@ -90,7 +90,9 @@ function askHidden(question: string): Promise<string> {
           if (input.isTTY) input.setRawMode(false);
           input.pause();
           process.stdout.write("\n");
-          return resolve(answer.trim());
+          // Some terminals wrap a paste in invisible markers (ESC[200~ … ESC[201~); drop those
+          // and any other control characters so only what was copied is left.
+          return resolve(answer.replace(/\x1b\[[0-9;]*[~A-Za-z]/g, "").replace(/[\x00-\x1f\x7f]/g, "").trim());
         }
         if (char === "\u0003") process.exit(1); // Ctrl-C
         if (char === "\u007f" || char === "\b") answer = answer.slice(0, -1);
@@ -105,7 +107,7 @@ async function main() {
   const adminEnv = option("--admin-env");
   let raw = process.env.MIGRATION_DATABASE_URL || (adminEnv ? readEnvValue(path.resolve(adminEnv), "DATABASE_URL") : undefined);
   if (!raw && process.stdin.isTTY) {
-    console.log("In Loupe's Supabase project: Connect (top of the page) → Session pooler → copy the URI.");
+    console.log("In the Backdrop Supabase project: Connect (top of the page) → Session pooler → copy the URI.");
     raw = await askHidden("Paste it here (it stays hidden): ");
   }
   if (raw?.includes("[YOUR-PASSWORD]")) {
@@ -113,7 +115,9 @@ async function main() {
   }
   if (!raw) throw new Error("Point me at Loupe's Supabase project's database: set MIGRATION_DATABASE_URL, or --admin-env <file>.");
   const adminUrl = normalizeDatabaseUrl(raw, "session");
+  if (!URL.canParse(adminUrl)) throw new Error("That doesn't look like a connection string (it should start with postgresql://). Nothing was changed.");
   const host = new URL(adminUrl).hostname;
+  console.log(`Connecting to ${host} as ${decodeURIComponent(new URL(adminUrl).username)}…`);
   const sql = postgres(adminUrl, { max: 1, prepare: false, ssl: tlsFor(adminUrl), onnotice: () => {} });
 
   try {
@@ -229,6 +233,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`\n✗ ${error instanceof Error ? error.message : error}\n`);
+  const e = error as Error & { code?: string; errors?: Error[] };
+  const why = e?.message || e?.errors?.[0]?.message || e?.code || String(error);
+  console.error(`\n✗ ${why === "ECONNREFUSED" || e?.code === "ECONNREFUSED" ? "Couldn't reach the database (connection refused)." : why}\n`);
   process.exit(1);
 });
