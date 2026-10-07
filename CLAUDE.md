@@ -16,6 +16,10 @@ Guy, founder of Reelarc, is not a developer. Explain what you did and what to te
 - **Dropping the same footage again just works.** Files already safely uploaded are skipped, half-finished ones resume, nothing is duplicated, no stray copies are left behind. Keep re-drops clean.
 - **"When things just work, life is amazing."** Fewer steps, no settings, no instructions. Test every change against the unhappy path (Wi-Fi drops, tab closed, same folder dropped twice), not just the happy one.
 
+## The design is the mockup, not Footage
+
+Loupe's screens follow the approved Loupe mockup (https://claude.ai/artifact/9SC3u71fLJ2FUQRXZV5wt4) and the design brief (~/Documents/assembly.si/Loupe - MVP design brief.md): the "Invisible Edit Suite". Footage's pages were only a starting point. In particular, a scene opens into the cutting room (script as the editing surface, player, filmstrip, Loupe and the command bar with Edit / Sound / Color / Preview), not Footage's shoot page of cards and file lists. When in doubt, open the mockup and match it.
+
 ## Stages
 
 1. **Foundation (done):** landing page, open sign-up, accounts, uploads to B2, proxies and web previews, scenes, plan/team/settings pages, the free-plan limit (1 scene, 25 GB).
