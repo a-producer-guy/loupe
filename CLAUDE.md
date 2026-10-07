@@ -10,6 +10,12 @@ Guy, founder of Reelarc, is not a developer. Explain what you did and what to te
 
 **It has to feel like directing an invisible editor.** The labour of editing happens in the background; the person only watches, listens and gives notes. Controls appear when they're needed and disappear after. When in doubt, fewer buttons.
 
+## What users love (keep these, Oct 2026 feedback from an editor on Footage)
+
+- **Never make anyone babysit uploads.** When the connection drops, say so plainly ("Reconnecting…") and say exactly what to do next: "drag in the same folder again and only what's missing goes up." Failure states are where trust is won.
+- **Dropping the same footage again just works.** Files already safely uploaded are skipped, half-finished ones resume, nothing is duplicated, no stray copies are left behind. Keep re-drops clean.
+- **"When things just work, life is amazing."** Fewer steps, no settings, no instructions. Test every change against the unhappy path (Wi-Fi drops, tab closed, same folder dropped twice), not just the happy one.
+
 ## Stages
 
 1. **Foundation (done):** landing page, open sign-up, accounts, uploads to B2, proxies and web previews, scenes, plan/team/settings pages, the free-plan limit (1 scene, 25 GB).
