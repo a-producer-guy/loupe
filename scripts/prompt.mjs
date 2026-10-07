@@ -18,7 +18,9 @@ export function ask(question, { hidden = false } = {}) {
           if (hidden && input.isTTY) input.setRawMode(false);
           input.pause();
           process.stdout.write("\n");
-          return resolve(answer.trim());
+          // Some terminals wrap a paste in invisible markers (ESC[200~ … ESC[201~); drop those
+          // and any other control characters so only what was copied is left.
+          return resolve(answer.replace(/\x1b\[[0-9;]*[~A-Za-z]/g, "").replace(/[\x00-\x1f\x7f]/g, "").trim());
         }
         if (char === "\u0003") process.exit(1); // Ctrl-C
         if (char === "\u007f" || char === "\b") answer = answer.slice(0, -1);
