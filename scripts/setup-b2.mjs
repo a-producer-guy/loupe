@@ -17,7 +17,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ask, writeEnv } from "./prompt.mjs";
+import { askFromClipboard, writeEnv } from "./prompt.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUCKET = process.env.B2_BUCKET || "loupe-footage";
@@ -65,9 +65,12 @@ async function b2(apiUrl, token, call, body) {
 async function main() {
   const bucketOnly = process.argv.includes("--bucket-only");
   console.log(`\nLoupe: Backblaze B2 setup${bucketOnly ? " (bucket settings only)" : ""}\n`);
-  console.log("Paste your B2 Master Application Key. It's used for this setup only and never saved.\n");
-  const keyId = await ask("  keyID: ");
-  const appKey = await ask("  applicationKey (hidden): ", { hidden: true });
+  console.log("Use a Backblaze key that can make buckets and keys (the Master Application Key, or a\nkey for All buckets with Read and Write). It's used for this setup only and never saved.\n");
+  const keyId = await askFromClipboard("keyID");
+  console.log(`  ✓ keyID ${keyId.slice(0, 6)}…`);
+  const appKey = await askFromClipboard("applicationKey");
+  if (appKey === keyId) throw new Error("That's the keyID again. Copy the applicationKey; nothing was changed.");
+  console.log("  ✓ applicationKey copied");
   if (!keyId || !appKey) throw new Error("Both the keyID and the applicationKey are needed.");
 
   const auth = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
@@ -77,7 +80,7 @@ async function main() {
   if (!auth.ok) throw new Error(`Backblaze didn't accept that key: ${account.message || auth.statusText}`);
   const caps = account.allowed?.capabilities ?? [];
   if (!caps.includes("writeKeys") || !caps.includes("writeBuckets")) {
-    throw new Error("That key can't create buckets and keys. Use the Master Application Key (App Keys page in Backblaze).");
+    throw new Error("That key can't create buckets and keys. Make one for All buckets with Read and Write (or use the Master Application Key).");
   }
   const { accountId, apiUrl, authorizationToken: token, s3ApiUrl } = account;
   const region = new URL(s3ApiUrl).hostname.split(".")[1]; // s3.us-east-005.backblazeb2.com → us-east-005

@@ -1,5 +1,6 @@
 // Shared by the setup scripts: asking in the terminal and saving settings files.
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 /** Asks one question in the terminal. `hidden` keeps what's typed or pasted off the screen. */
@@ -42,4 +43,14 @@ export function writeEnv(file, values) {
     else lines.push(`${key}=${value}`);
   }
   writeFileSync(file, `${lines.join("\n")}\n`, { mode: 0o600 });
+}
+
+/**
+ * On a Mac: "copy it, then press return here", and the value is read from the clipboard,
+ * so nothing is pasted into the terminal at all. Elsewhere it falls back to a hidden paste.
+ */
+export async function askFromClipboard(label) {
+  if (process.platform !== "darwin") return ask(`  ${label} (hidden): `, { hidden: true });
+  await ask(`  Copy the ${label}, then press return here… `, { hidden: true });
+  return execFileSync("pbpaste", { encoding: "utf8" }).replace(/[\x00-\x1f\x7f]/g, "").trim();
 }
