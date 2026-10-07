@@ -52,7 +52,7 @@ export function briefPrompt(heading: string, lines: { who: string; text: string;
     .join("\n")
     .slice(0, 8000);
   return [
-    "This is a short dramatic scene from an actor's reel, as its first assembly cuts it. Brief the sound and the picture for it.",
+    "This is a short dramatic scene, as its first cut has it. Brief the sound and the picture for it.",
     heading ? `Scene heading: ${heading}` : "There's no scene heading: work out the place from the dialogue.",
     "",
     text,

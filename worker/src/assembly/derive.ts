@@ -220,7 +220,7 @@ export const PARTNER = "PARTNER";
 /**
  * A script from sentences and who says each (±1, from coverage.ts):
  * consecutive sentences by the same actor make one speech. `clientSide` is
- * the side on camera in the first take (Reelarc films the client first).
+ * the side on camera in the first take (usually the lead, who tends to be filmed first).
  */
 export function scriptFrom(sentences: Sentence[], speaker: number[], clientSide: 1 | -1): ScriptLine[] {
   const lines: ScriptLine[] = [];

@@ -1,10 +1,10 @@
-// Makes one shoot's first assembly, start to finish, in a work folder:
+// Makes one scene's cut, start to finish, in a work folder:
 //
 //   listening  every take transcribed (Whisper on fal), with its sound
 //   script     which script it is (or the lines from the takes), who each take is on
 //   cutting    the edit (engine.ts)
 //   dialogue   each used take's sound cleaned, and the room tone
-//   music      ambience and an instrumental score (ElevenLabs on fal)
+//   music      the extras, when asked for: ambience, a score (ElevenLabs on fal), an establishing shot
 //   mixing     the preview mix and video
 //   packing    the Premiere timeline and READ ME, and a check by ear
 //
@@ -19,11 +19,11 @@ import { ffmpegPipe, readAudio, voicedWords } from "./audio.js";
 import { cleanTake, matchVoice, roomTone, VOICE_BANDS, voiceMatch, type Denoise, type VoiceColour } from "./dialogue.js";
 import { assembleAligned, describeShots, FPS, keepSaidLines, onMovement, type Setup, type Shot } from "./engine.js";
 import { lineFlaws, pictureOf, type Picture } from "./picture.js";
-import { introSeconds, mix, overlapIntro, pushIns, quietJoins, readMe, renderPreview, sceneFrame, timelineXml, type Intro, type TakeMedia } from "./finish.js";
+import { CUT_FOLDER, introSeconds, mix, overlapIntro, pushIns, quietJoins, readMe, renderPreview, sceneFrame, timelineXml, type Intro, type TakeMedia } from "./finish.js";
 import { ESTABLISHING_SECONDS, frameOf, makeEstablishing } from "./establishing.js";
 import { cameraFor, FALLBACK_BRIEF, makeAmbience, makeScore, sceneBrief } from "./music.js";
 import { workOutScene, type Corrections, type LibraryScript, type SceneTake } from "./scene.js";
-import { heardInOrder, norm, tokens, type Word } from "./text.js";
+import { heardInOrder, isFound, norm, tokens, type Word } from "./text.js";
 import { lookAtTakes } from "./vision.js";
 import { steerOf, type Direction } from "./direction.js";
 import { framesOfCut, gradeFor, type Look } from "./grade.js";
@@ -43,7 +43,7 @@ export type ShootTake = {
   madeWithLut: boolean;
 };
 
-export type Shoot = { id: number; name: string; prefix: string; lut: { key: string; fileName: string; name: string } | null; takes: ShootTake[] };
+export type Shoot = { id: number; accountId?: number; name: string; prefix: string; lut: { key: string; fileName: string; name: string } | null; takes: ShootTake[] };
 
 export type TranscriptCache = {
   get(take: ShootTake): Promise<Word[] | null>;
@@ -100,7 +100,15 @@ export type AssemblyResult = {
   performances?: Record<string, string>;
   /** Loupe's grade, from the director's note on the colour (grade.ts); null: none asked for. */
   look: Look | null;
-  /** The package, relative to the shoot's "First Assembly" folder. */
+  /** Which extras this version has (off unless a note asked for them). */
+  extras: { establishing: boolean; ambience: boolean; score: boolean };
+  /**
+   * Every line in every take, for "other takes" (the script-centric cutting room): for each take, how it scored and,
+   * line by line (in `lines` order), where in the take's preview the line is said (seconds), how much of it was said
+   * (0-1), and the words heard. Null: not in that take.
+   */
+  lineTakes: Record<string, { q: number | null; why: string[]; complete: number | null; performance: number | null; lines: ({ s: number; e: number; match: number; said: string } | null)[] }>;
+  /** The package, relative to the scene's "Loupe Cut" folder. */
   preview: { path: string; size: number };
   files: { path: string; size: number }[];
 };
@@ -156,11 +164,13 @@ export async function makeAssembly(
 ): Promise<{ result: AssemblyResult; files: AssemblyFile[] }> {
   const { tools, signal, log } = ctx;
   const dir = ctx.workDir;
-  const pkg = path.join(dir, "First Assembly");
+  const pkg = path.join(dir, CUT_FOLDER);
+  // The extras, off unless asked for (Guy, Oct 7). A note on the music asks for a score.
+  const extras = { establishing: Boolean(direction.extras?.establishing), ambience: Boolean(direction.extras?.ambience), score: Boolean(direction.extras?.score || direction.music) };
   await mkdir(pkg, { recursive: true });
   const takes = [...shoot.takes].sort((a, b) => a.path.localeCompare(b.path, "en", { numeric: true }));
   const labels = takeLabels(takes.map((t) => t.path));
-  if (takes.length < 2) throw new Error("A first assembly needs at least two takes with proxies.");
+  if (takes.length < 2) throw new Error("Loupe needs at least two takes with proxies to cut a scene.");
 
   // 1. Every take's sound (from its proxy, which is then deleted to save room), its words and its preview.
   await ctx.step("listening");
@@ -259,7 +269,8 @@ export async function makeAssembly(
   });
   if (seen.length) log(`Flaws, against each setup's other takes, kept clear of where they can be: ${seen.join("; ")}.`);
   // With an establishing shot in front, the scene starts right on its first line, heard under the shot's end.
-  const cut0 = assembleAligned(title, scene.client, scene.roles, scene.units, scene.takes, { tightHead: Boolean(brief.exterior), beats: brief.peaks, laugh, steer: steerOf(direction, performance) });
+  const exterior = extras.establishing ? brief.exterior : null;
+  const cut0 = assembleAligned(title, scene.client, scene.roles, scene.units, scene.takes, { tightHead: Boolean(exterior), beats: brief.peaks, laugh, steer: steerOf(direction, performance) });
   log(`Cut: ${cut0.seconds.toFixed(0)} s, ${cut0.video.length} shots, jumps ${cut0.jumps.length}.`);
 
   // 4. Dialogue, cleaned, for every take the timeline uses; then the room tone.
@@ -318,16 +329,17 @@ export async function makeAssembly(
     return Promise.all([...picks.values()].map((p) => frameOf(tools.ffmpeg, preview.get(p.take)!, (p.in + p.out) / 2, signal)));
   };
 
-  // 5. The ambience, the score and the establishing shot, made at the same time.
+  // 5. The extras that were asked for (ambience, score, establishing shot), made at the same time.
   await ctx.step("music");
-  const ambience = path.join(dir, "ambience.mp3");
-  const music = path.join(dir, "music.mp3");
+  const ambience = extras.ambience ? path.join(dir, "ambience.mp3") : null;
+  const music = extras.score ? path.join(dir, "music.mp3") : null;
   const establishing = path.join(dir, "establishing.mp4");
-  const exterior = brief.exterior;
   const [, , made] = await Promise.all([
-    makeAmbience(ctx.fal, brief, ambience, signal),
+    ambience ? makeAmbience(ctx.fal, brief, ambience, signal) : null,
     // A note on the music (Loupe, Oct 6) comes first in the composer's brief.
-    makeScore(ctx.fal, direction.music ? { ...brief, score: `The director's note, which comes first: ${direction.music}. ${brief.score}` } : brief, cut0.seconds + (exterior ? ESTABLISHING_SECONDS : 0), music, signal),
+    music
+      ? makeScore(ctx.fal, direction.music ? { ...brief, score: `The director's note, which comes first: ${direction.music}. ${brief.score}` } : brief, cut0.seconds + (exterior ? ESTABLISHING_SECONDS : 0), music, signal)
+      : null,
     (async (): Promise<Intro> => {
       if (!exterior) return null;
       try {
@@ -394,7 +406,7 @@ export async function makeAssembly(
       log(`No grade (${(error as Error).message}).`);
     }
   }
-  const previewName = `${title} - First Assembly (preview).mp4`;
+  const previewName = `${title} - Loupe cut (preview).mp4`;
   await renderPreview({ ffmpeg: tools.ffmpeg, cut, media, mixFile, lut: lutFile, grade: look ? gradeFile : null, intro, pushIns: pushed, handheld, out: path.join(pkg, previewName), signal });
 
   // 7. The timeline, the READ ME, and a check by ear: every kept line heard once, in order.
@@ -406,12 +418,12 @@ export async function makeAssembly(
         : `LUT: add an Adjustment Layer on top with Lumetri Color > Basic Correction > Input LUT = LUTs/${shoot.lut.fileName} (it comes with the Premiere download).`
       : "No LUT was set for this shoot.") +
     (look
-      ? ` Grade (Loupe: ${look.said}): on ${shoot.lut ? "the same" : "an"} Adjustment Layer on top, Lumetri Color > Creative > Look = "First Assembly/Loupe look.cube" (after the LUT, as the preview has it).`
+      ? ` Grade (Loupe: ${look.said}): on ${shoot.lut ? "the same" : "an"} Adjustment Layer on top, Lumetri Color > Creative > Look = "${CUT_FOLDER}/Loupe look.cube" (after the LUT, as the preview has it).`
       : "");
-  const xmlName = `${title} - First Assembly.xml`;
+  const xmlName = `${title} - Loupe cut.xml`;
   if (intro) await copyFile(intro.file, path.join(pkg, "Establishing (AI).mp4"));
   await writeFile(path.join(pkg, xmlName), timelineXml({ cut, title, prefix: shoot.prefix, media, layers, seconds, place: brief.place, lutNote, intro, pushIns: pushed, handheld }));
-  await writeFile(path.join(pkg, "READ ME.txt"), readMe({ title, prefix: shoot.prefix, fromTakes: scene.script.fromTakes, lutNote, handheld }));
+  await writeFile(path.join(pkg, "READ ME.txt"), readMe({ title, prefix: shoot.prefix, fromTakes: scene.script.fromTakes, lutNote, handheld, ambience: layers.ambience, music: layers.music }));
   let heard: number | null = null;
   try {
     const result = await ctx.fal.run<{ text?: string }>(
@@ -434,7 +446,7 @@ export async function makeAssembly(
     { path: previewName, file: path.join(pkg, previewName), contentType: "video/mp4" },
     { path: "READ ME.txt", file: path.join(pkg, "READ ME.txt"), contentType: "text/plain; charset=utf-8" },
     ...[...used].filter((t) => cleaned.has(t)).map((t) => ({ path: `Audio/${t}_dialogue.wav`, file: path.join(audioDir, `${t}_dialogue.wav`), contentType: "audio/wav" })),
-    ...["room_tone.wav", "ambience.wav", "music.wav"].map((name) => ({ path: `Audio/${name}`, file: path.join(audioDir, name), contentType: "audio/wav" })),
+    ...["room_tone.wav", ...(layers.ambience ? ["ambience.wav"] : []), ...(layers.music ? ["music.wav"] : [])].map((name) => ({ path: `Audio/${name}`, file: path.join(audioDir, name), contentType: "audio/wav" })),
     ...(intro ? [{ path: "Establishing (AI).mp4", file: path.join(pkg, "Establishing (AI).mp4"), contentType: "video/mp4" }] : []),
     ...(look ? [{ path: "Loupe look.cube", file: gradeFile, contentType: "text/plain; charset=utf-8" }] : []),
   ];
@@ -471,6 +483,23 @@ export async function makeAssembly(
       snaps: pushed.filter((x) => x.snap !== undefined).length,
     },
     establishing: Boolean(intro),
+    extras: { establishing: Boolean(intro), ambience: layers.ambience, score: layers.music },
+    lineTakes: Object.fromEntries(
+      cut.takes.map((t) => {
+        const s = cut.scores[t.take];
+        const r2 = (x: number) => Math.round(x * 100) / 100;
+        return [
+          t.take,
+          {
+            q: s ? s.q : null,
+            why: s ? s.why : [],
+            complete: s ? s.complete : null,
+            performance: performance[t.take]?.bonus ?? null,
+            lines: t.matches.map((m) => (isFound(m) ? { s: r2(m.start), e: r2(m.end), match: r2(m.score), said: m.said } : null)),
+          },
+        ];
+      }),
+    ),
     tone: brief.tone,
     camera,
     takes: scene.takes.map((t) => ({ take: t.take, path: t.path, found: scene.found[t.take] ?? null, setup: t.setup, used: used.has(t.take) || cut.video.some((p) => p.take === t.take) })),

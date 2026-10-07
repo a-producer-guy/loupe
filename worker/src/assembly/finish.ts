@@ -18,13 +18,16 @@ export const AMBIENCE_LUFS = -40;
 export const MUSIC_LUFS = -29;
 export const DUCK_DB = -9;
 export const FINAL_LUFS = -16;
-/** Where the timeline expects the shoot folder; if it's elsewhere Premiere asks for the first clip and finds the rest. */
-export const MEDIA_ROOT = "/Users/Shared/Reelarc Footage";
+/** Where the timeline expects the scene folder; if it's elsewhere Premiere asks for the first clip and finds the rest. */
+export const MEDIA_ROOT = "/Users/Shared/Loupe";
+/** The folder beside the scene's footage that holds the cut's package. */
+export const CUT_FOLDER = "Loupe Cut";
 const RATE = "<rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>";
 
 export type TakeMedia = { width: number; height: number; audioChannels: number; preview: string };
 
-export type Layers = { start: number; musicLength: number; points: [number, number][]; musicGainDb: number; ambienceGainDb: number; introGainDb: number };
+/** The mix's levels for the timeline. `ambience` and `music` say whether those layers were made (extras: off unless asked for). */
+export type Layers = { start: number; musicLength: number; points: [number, number][]; musicGainDb: number; ambienceGainDb: number; introGainDb: number; ambience: boolean; music: boolean };
 
 /**
  * The establishing shot in front of the cut (null: none): a video file, its
@@ -368,8 +371,9 @@ export async function mix(opts: {
   cut: Cut;
   dialogue: Map<string, string>;
   roomTone: string;
-  ambience: string;
-  music: string;
+  /** The extras, when asked for (null: that layer is left out). */
+  ambience: string | null;
+  music: string | null;
   intro: Intro;
   audioDir: string;
   mixFile: string;
@@ -440,29 +444,33 @@ export async function mix(opts: {
   }
 
   // The room's ambience: the seamless loop from the start of the scene to the end, set well under the dialogue.
-  const loop = await readAudio(ffmpeg, opts.ambience, 2, SR, signal);
   const from = pic > 0 ? handover : 0;
-  const amb = loop.map((c) => {
-    const out = new Float32Array(n);
-    for (let i = from; i < n; i++) out[i] = c[(i - from) % c.length];
-    fade(out, from, Math.min(pic > 0 ? pic : from + Math.floor(1.5 * SR), n), true);
-    fade(out, Math.max(from, n - Math.floor(1.5 * SR)), n, false);
-    return out;
-  });
-  const ambienceGainDb = AMBIENCE_LUFS - loudness(amb.map((c) => c.subarray(from)));
-  await writeAudio(ffmpeg, path.join(opts.audioDir, "ambience.wav"), amb, SR, "pcm_s24le", signal);
+  let amb: Float32Array[] = [new Float32Array(n), new Float32Array(n)];
+  let ambienceGainDb = 0;
+  if (opts.ambience) {
+    const loop = await readAudio(ffmpeg, opts.ambience, 2, SR, signal);
+    amb = loop.map((c) => {
+      const out = new Float32Array(n);
+      for (let i = from; i < n; i++) out[i] = c[(i - from) % c.length];
+      fade(out, from, Math.min(pic > 0 ? pic : from + Math.floor(1.5 * SR), n), true);
+      fade(out, Math.max(from, n - Math.floor(1.5 * SR)), n, false);
+      return out;
+    });
+    ambienceGainDb = AMBIENCE_LUFS - loudness(amb.map((c) => c.subarray(from)));
+    await writeAudio(ffmpeg, path.join(opts.audioDir, "ambience.wav"), amb, SR, "pcm_s24le", signal);
+  }
 
   // Score: from the first frame (over the establishing shot), its ending on the scene's last beat; it comes in
   // slowly and dips under the dialogue (duckPoints).
-  let music = await readAudio(ffmpeg, opts.music, 2, SR, signal);
+  let music: Float32Array[] = opts.music ? await readAudio(ffmpeg, opts.music, 2, SR, signal) : [new Float32Array(0), new Float32Array(0)];
   const speech = speechOnTimeline(cut, DIP_JOIN).map(([s0, e0]) => [s0 + off / SR, e0 + off / SR] as [number, number]);
   // Its last chord lands just after the scene's last line and rings over the final shot; with no clear last chord, the
   // piece's real ending (not its file's, often seconds of near silence later) meets the scene's (Guy, Oct 5: a lazy
   // edit lets the score end wherever it ends). One too short for that starts with the scene, and ends early.
-  const hit = finalHit(music);
-  const end = audibleEnd(music);
+  const hit = opts.music ? finalHit(music) : null;
+  const end = opts.music ? audibleEnd(music) : 0;
   const lands = hit !== null && speech.length ? Math.min(speech.at(-1)![1] + 0.4, n / SR - 2.0) - hit : n / SR - 0.5 - end;
-  let start = lands <= 1.0 ? lands : 0;
+  let start = opts.music && lands <= 1.0 ? lands : 0;
   if (start < 0) {
     music = music.map((c) => c.slice(Math.round(-start * SR))); // start a little into the piece
     start = 0;
@@ -470,9 +478,9 @@ export async function mix(opts: {
   const room = n - Math.round(start * SR);
   if (music[0].length > room) music = music.map((c) => c.slice(0, room));
   const musicLength = music[0].length / SR;
-  await writeAudio(ffmpeg, path.join(opts.audioDir, "music.wav"), music, SR, "pcm_s24le", signal);
-  const musicGainDb = MUSIC_LUFS - loudness(music);
-  const points = duckPoints(speech, musicLength, start);
+  if (opts.music) await writeAudio(ffmpeg, path.join(opts.audioDir, "music.wav"), music, SR, "pcm_s24le", signal);
+  const musicGainDb = opts.music ? MUSIC_LUFS - loudness(music) : 0;
+  const points: [number, number][] = opts.music ? duckPoints(speech, musicLength, start) : [];
 
   // The preview mix, faded in from silence and out to it.
   const env = envelope(points, music[0].length);
@@ -493,7 +501,10 @@ export async function mix(opts: {
   }
   softCeiling(out, 0.89, true);
   await writeAudio(ffmpeg, opts.mixFile, out, SR, "pcm_s24le", signal);
-  return { layers: { start, musicLength, points, musicGainDb, ambienceGainDb, introGainDb }, seconds: n / SR };
+  return {
+    layers: { start, musicLength, points, musicGainDb, ambienceGainDb, introGainDb, ambience: Boolean(opts.ambience), music: Boolean(opts.music) },
+    seconds: n / SR,
+  };
 }
 
 /**
@@ -684,7 +695,7 @@ export function timelineXml(opts: {
     const m = opts.media.get(take);
     return fileXml(ids, `file-${take}`, fileName(take), pathUrl(`${base}/${t.path}`), fr(t.length), t.timecode, { width: m?.width ?? 1920, height: m?.height ?? 1080 }, Math.max(1, m?.audioChannels ?? 2));
   };
-  const dia = (take: string) => fileXml(ids, `file-${take}-dialogue`, `${take}_dialogue.wav`, pathUrl(`${base}/First Assembly/Audio/${take}_dialogue.wav`), fr(T.get(take)!.length), T.get(take)!.timecode, null, 1);
+  const dia = (take: string) => fileXml(ids, `file-${take}-dialogue`, `${take}_dialogue.wav`, pathUrl(`${base}/${CUT_FOLDER}/Audio/${take}_dialogue.wav`), fr(T.get(take)!.length), T.get(take)!.timecode, null, 1);
   const len = (take: string) => fr(T.get(take)!.length);
   const total = fr(opts.seconds);
   // The establishing shot runs E frames; the scene starts O frames in, its sound under the shot's end (the J-cut).
@@ -694,7 +705,7 @@ export function timelineXml(opts: {
   const alt = (p: Cut["video"][number], k: number) => p.alternates[k];
 
   const establishing = () =>
-    fileXml(ids, "file-establishing", "Establishing (AI).mp4", pathUrl(`${base}/First Assembly/Establishing (AI).mp4`), E, null, { width: 1280, height: 720 }, 2);
+    fileXml(ids, "file-establishing", "Establishing (AI).mp4", pathUrl(`${base}/${CUT_FOLDER}/Establishing (AI).mp4`), E, null, { width: 1280, height: 720 }, 2);
   const v1 = [fadeXml(0, fr(FADE_IN), "start-black")];
   if (intro) v1.push(item(ids, "ESTABLISHING (AI)", establishing(), E, 0, E, 0));
   cut.video.forEach((p, k) => {
@@ -723,17 +734,17 @@ export function timelineXml(opts: {
   const a4 = camera(1);
   const a5 = camera(2);
   const sceneLength = total - O;
-  const toneFile = fileXml(ids, "file-room-tone", "room_tone.wav", pathUrl(`${base}/First Assembly/Audio/room_tone.wav`), sceneLength + fr(1.0), null, null, 1);
+  const toneFile = fileXml(ids, "file-room-tone", "room_tone.wav", pathUrl(`${base}/${CUT_FOLDER}/Audio/room_tone.wav`), sceneLength + fr(1.0), null, null, 1);
   const a6 = [item(ids, "ROOM TONE (from the takes)", toneFile, sceneLength + fr(1.0), O, total, 0, { track: 1 })];
-  const amb = () => fileXml(ids, "file-ambience", "ambience.wav", pathUrl(`${base}/First Assembly/Audio/ambience.wav`), total, null, null, 2);
+  const amb = () => fileXml(ids, "file-ambience", "ambience.wav", pathUrl(`${base}/${CUT_FOLDER}/Audio/ambience.wav`), total, null, null, 2);
   const ambName = `AMBIENCE (${opts.place}, AI)`;
-  const a7 = [item(ids, ambName, amb(), total, 0, total, 0, { track: 1, filter: levels(layers.ambienceGainDb) })];
-  const a8 = [item(ids, ambName, amb(), total, 0, total, 0, { track: 2, filter: levels(layers.ambienceGainDb) })];
+  const a7 = layers.ambience ? [item(ids, ambName, amb(), total, 0, total, 0, { track: 1, filter: levels(layers.ambienceGainDb) })] : [];
+  const a8 = layers.ambience ? [item(ids, ambName, amb(), total, 0, total, 0, { track: 2, filter: levels(layers.ambienceGainDb) })] : [];
   const mStart = fr(layers.start);
   const mLen = fr(layers.musicLength);
-  const mus = () => fileXml(ids, "file-music", "music.wav", pathUrl(`${base}/First Assembly/Audio/music.wav`), mLen, null, null, 2);
-  const a9 = [item(ids, "SCORE (AI, dips under dialogue)", mus(), mLen, mStart, mStart + mLen, 0, { track: 1, filter: levels(layers.musicGainDb, layers.points) })];
-  const a10 = [item(ids, "SCORE (AI, dips under dialogue)", mus(), mLen, mStart, mStart + mLen, 0, { track: 2, filter: levels(layers.musicGainDb, layers.points) })];
+  const mus = () => fileXml(ids, "file-music", "music.wav", pathUrl(`${base}/${CUT_FOLDER}/Audio/music.wav`), mLen, null, null, 2);
+  const a9 = layers.music ? [item(ids, "SCORE (AI, dips under dialogue)", mus(), mLen, mStart, mStart + mLen, 0, { track: 1, filter: levels(layers.musicGainDb, layers.points) })] : [];
+  const a10 = layers.music ? [item(ids, "SCORE (AI, dips under dialogue)", mus(), mLen, mStart, mStart + mLen, 0, { track: 2, filter: levels(layers.musicGainDb, layers.points) })] : [];
   // The street sound hands over to the room as the scene's first line comes in under it.
   const handover: [number, number][] = O < E ? [[O / FPS, 0], [E / FPS, -40]] : [[Math.max(0, E / FPS - 0.75), 0], [E / FPS, -40]];
   const exterior = (channel: number) =>
@@ -742,7 +753,7 @@ export function timelineXml(opts: {
   const a12 = exterior(2);
 
   const layerNote =
-    `${intro ? `V1 opens on an AI establishing shot (Seedance)${O < E ? ", the first line already heard under its end," : ""} then the cut · ` : "V1 the cut · "}V2/V3 alternate takes (off). A1 ${cut.client}'s dialogue · A2 ${cut.partner}'s dialogue (both cleaned) · A3 alternate dialogue (off) · A4/A5 camera sound as shot (off) · A6 room tone · A7/A8 ambience (AI) · A9/A10 score (AI) with dips under every line` +
+    `${intro ? `V1 opens on an AI establishing shot (Seedance)${O < E ? ", the first line already heard under its end," : ""} then the cut · ` : "V1 the cut · "}V2/V3 alternate takes (off). A1 ${cut.client}'s dialogue · A2 ${cut.partner}'s dialogue (both cleaned) · A3 alternate dialogue (off) · A4/A5 camera sound as shot (off) · A6 room tone${layers.ambience ? " · A7/A8 ambience (AI)" : ""}${layers.music ? ` · ${layers.ambience ? "A9/A10" : "A7/A8"} score (AI) with dips under every line` : ""}` +
     `${intro?.hasAudio ? " · A11/A12 the establishing shot's street sound (AI)" : ""}. Fades from black and to black.` +
     (opts.handheld ? " A handheld camera on every shot (Basic Motion keyframes: Scale, Rotation, Center; to steady a shot, delete its keyframes and set Scale to 100)." : "") +
     (pushes.length - snaps ? ` Slow push-ins (Scale keyframes) on ${pushes.length - snaps} moment${pushes.length - snaps === 1 ? "" : "s"} where the scene peaks.` : "") +
@@ -766,11 +777,13 @@ export function timelineXml(opts: {
     return `<track${attrs}>${items.join("")}${out}</track>`;
   };
   const first = opts.media.get(cut.video[0].take);
-  const audio = [track(a1), track(a2), track(a3), track(a4, 0), track(a5, 1), track(a6), track(a7, 0), track(a8, 1), track(a9, 0), track(a10, 1)];
+  const audio = [track(a1), track(a2), track(a3), track(a4, 0), track(a5, 1), track(a6)];
+  if (a7.length) audio.push(track(a7, 0), track(a8, 1));
+  if (a9.length) audio.push(track(a9, 0), track(a10, 1));
   if (a11.length) audio.push(track(a11, 0), track(a12, 1));
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<xmeml version="5">' +
-    `<sequence id="sequence-1"><name>${escape(`${opts.title} - First Assembly`)}</name><duration>${total}</duration>${RATE}` +
+    `<sequence id="sequence-1"><name>${escape(`${opts.title} - Loupe cut`)}</name><duration>${total}</duration>${RATE}` +
     `<timecode>${RATE}<string>01:00:00:00</string><frame>86400</frame><displayformat>NDF</displayformat></timecode>${markers.join("")}` +
     `<media><video><format><samplecharacteristics>${RATE}<width>${first?.width ?? 1920}</width><height>${first?.height ?? 1080}</height><pixelaspectratio>square</pixelaspectratio>` +
     `<fielddominance>none</fielddominance></samplecharacteristics></format>${track(v1, undefined, true)}${track(v2, undefined, true)}${track(v3, undefined, true)}</video>` +
@@ -779,23 +792,23 @@ export function timelineXml(opts: {
   );
 }
 
-export function readMe(opts: { title: string; prefix: string; fromTakes: boolean; lutNote: string; handheld?: boolean }): string {
-  return `${opts.title} - First Assembly
-Made automatically by Reelarc Footage from the takes${opts.fromTakes ? " (no script was added, so the lines were worked out from the takes)" : " and the script"}.
+export function readMe(opts: { title: string; prefix: string; fromTakes: boolean; lutNote: string; handheld?: boolean; ambience?: boolean; music?: boolean }): string {
+  const extras = [opts.ambience ? "ambience (AI)" : null, opts.music ? "score (AI), dipping under every line" : null].filter(Boolean);
+  return `${opts.title} - Loupe cut
+Cut by Loupe from the takes${opts.fromTakes ? " (no script was added, so the lines were worked out from the takes)" : " and the script"}.
 
 TO OPEN IN PREMIERE
-1. Download the shoot "For Premiere" from Reelarc Footage. This folder comes with it, inside the shoot's
-   folder (${opts.prefix}).
-2. In Premiere: File > Import, and pick "${opts.title} - First Assembly.xml".
+1. Download the scene "For Premiere" from Loupe (editloupe.com). This folder comes with it, inside the
+   scene's folder (${opts.prefix}).
+2. In Premiere: File > Import, and pick "${opts.title} - Loupe cut.xml".
    If Premiere asks where a clip is, point it at the first one: it finds the rest by itself.
 3. Attach proxies as usual (see the For Premiere steps in the Download window).
 
 THE TIMELINE
 V1  the cut                         V2/V3  alternate takes, switched off (switch one on to swap)
-A1     the client's dialogue        A2      the other actor's dialogue (both cleaned)
+A1     the lead's dialogue          A2      the other actor's dialogue (both cleaned)
 A3     alternate dialogue, off      A4/A5   camera sound as shot, off
-A6     room tone from the takes     A7/A8   ambience (AI)
-A9/A10 score (AI), dipping under every line
+A6     room tone from the takes${extras.length ? `\nThen ${extras.join("; ")}.` : ""}
 A marker on every shot says why that take was picked.${
     opts.handheld
       ? `
@@ -808,9 +821,12 @@ THE LOOK
 ${opts.lutNote}
 
 NOTES
-- The dialogue comes from the proxies' camera sound; the camera originals are on A4/A5 for the final mix.
-- The ambience and score were made with ElevenLabs (through fal). Check the licence covers the client's
-  use before publishing.
+- The dialogue comes from the proxies' camera sound; the camera originals are on A4/A5 for the final mix.${
+    extras.length
+      ? `
+- The ${opts.ambience && opts.music ? "ambience and score were" : opts.music ? "score was" : "ambience was"} made with ElevenLabs (through fal). Check the licence covers your use before publishing.`
+      : ""
+  }
 `;
 }
 

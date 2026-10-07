@@ -15,7 +15,7 @@ export type Seen = { who: "A" | "B" | "insert" | null; framing: "wide" | "medium
 
 export function coveragePrompt(labels: string[]): string {
   return [
-    `These are the takes of one dialogue scene for an actor's reel, filmed with one camera. Each image is one take: five frames from across it, left to right in time order. In this order: ${labels.join(", ")}.`,
+    `These are the takes of one dialogue scene, filmed with one camera. Each image is one take: five frames from across it, left to right in time order. In this order: ${labels.join(", ")}.`,
     'Two actors play the scene. Call the actor who is the subject of the first take "A" and the other actor "B" (tell them apart by face, hair, clothes and build).',
     "For each take, say who the shot is on and how close it is:",
     '- who: "A" or "B": the actor the camera is on for most of the take, facing it and in focus. In an over-the-shoulder shot it is the actor facing the camera, not the head or shoulder in the foreground; if a handheld camera swings to the other actor for a moment, go by most of the frames. "insert" when no actor\'s face is the subject (an object, hands, a phone), or "unclear".',

@@ -1130,7 +1130,7 @@ function soundOf(b: Block): AudioEdit[] {
 }
 
 /**
- * The client is who the reel is for; the edit serves the scene, not them (Guy,
+ * The client (Loupe's "lead": whose scene it is) gets their own dialogue track; the edit serves the scene, not them (Guy,
  * Oct 5: "The goal is for the BEST edit… Serve the Story"). From the scene
  * read: `beats`, the lines where the scene peaks, which the other actor is
  * seen taking in, and `laugh`, its biggest laugh; both indexes into the lines

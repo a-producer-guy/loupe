@@ -46,6 +46,7 @@ export function brainPrompt(note: string, cut: CutContext, d: Direction): string
     reactions: d.reactions ?? "normal",
     pace: d.pace ?? "normal",
     clean: d.clean ?? "isolate",
+    extras: { establishing: Boolean(d.extras?.establishing), ambience: Boolean(d.extras?.ambience), score: Boolean(d.extras?.score) },
   };
   return [
     `A director is giving a note on the first assembly of a dialogue scene: "${cut.title}"${cut.tone ? `, played as a ${cut.tone}` : ""}${cut.place ? `, in a ${cut.place}` : ""}. It runs ${Math.round(cut.seconds)} s. ${cut.client} and ${cut.partner}.`,
@@ -66,7 +67,8 @@ export function brainPrompt(note: string, cut: CutContext, d: Direction): string
     "",
     "What you can change (anything else, you can't yet):",
     '- "look": the colour grade, as a note for the colourist in plain words (like "warmer, deeper shadows, skin natural"). Null takes the grade off. A new look note replaces the old one, so carry over what should stay.',
-    '- "music": a note on the score (like "sadder, sparser, no piano"). Null goes back to the score the scene suggests.',
+    '- "extras": {"establishing": true/false, "ambience": true/false, "score": true/false}. Off unless the director asks: an establishing shot of the outside made to match the scene (it costs a little to make), the room\'s ambience, and an instrumental score. Only the ones that change.',
+    '- "music": a note on the score (like "sadder, sparser, no piano"); it also turns the score on. Null goes back to the score the scene suggests.',
     '- "picks": a take for a line: {"line": the line\'s exact text from the list above, "take": a take that has that actor on camera}. Picks add to the ones set; "unpick": lines to give back to the automatic choice.',
     '- "reactions": "more", "fewer" or "normal": how often the other actor is seen listening.',
     '- "pace": "tighter", "looser" or "normal": the pauses where the picture cuts (pauses inside one continuous take stay as performed).',
@@ -97,6 +99,13 @@ export function applyReading(output: string, cut: CutContext, d: Direction): { r
   const words = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
   if ("look" in set) change("look", words(set.look, 300));
   if ("music" in set) change("music", words(set.music, 300));
+  // The extras: only true/false for the three Loupe knows; a note on the music asks for a score.
+  const extras = { ...(d.extras ?? {}) };
+  const ex = (set.extras && typeof set.extras === "object" ? set.extras : {}) as Record<string, unknown>;
+  for (const k of ["establishing", "ambience", "score"] as const) if (typeof ex[k] === "boolean") extras[k] = ex[k] as boolean;
+  if (words(set.music, 300)) extras.score = true;
+  const on = Object.fromEntries(Object.entries(extras).filter(([, v]) => v));
+  change("extras", Object.keys(on).length ? on : undefined);
   if (set.reactions === "more" || set.reactions === "fewer") change("reactions", set.reactions);
   else if (set.reactions === "normal") change("reactions", null);
   if (set.pace === "tighter" || set.pace === "looser") change("pace", set.pace);

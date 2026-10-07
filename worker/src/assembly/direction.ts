@@ -1,5 +1,5 @@
-// A director's notes to Loupe (Guy, Oct 6), kept with each assembly
-// (footage_assemblies.direction) and carried from one to the next: the look,
+// A director's notes to Loupe (Guy, Oct 6), kept with each version of a cut
+// (loupe_cuts.direction) and carried from one to the next: the look,
 // a take picked for a line, more or fewer reactions, tighter or looser cuts,
 // how the dialogue is cleaned. The app adds a note; the worker reads it
 // (loupe.ts), answers, and makes the assembly again with it.
@@ -20,7 +20,14 @@ export type Direction = {
   pace?: "tighter" | "looser" | null;
   /** How the dialogue is cleaned: ElevenLabs' voice isolation after the filters (isolate.ts) unless "standard", the filters alone. */
   clean?: "isolate" | "standard" | null;
+  /**
+   * The extras, off unless asked for (Guy, Oct 7: "off by default, one click to add"): an AI establishing shot of the
+   * outside (~$2.50, made once per scene), the room's ambience, and a score.
+   */
+  extras?: Extras;
 };
+
+export type Extras = { establishing?: boolean; ambience?: boolean; score?: boolean };
 
 const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 const oneOf = <T extends string>(v: unknown, options: readonly T[]): T | null => (options.includes(v as T) ? (v as T) : null);
@@ -51,7 +58,15 @@ export function parseDirection(raw: unknown): Direction {
     reactions: oneOf(o.reactions, ["more", "fewer"] as const),
     pace: oneOf(o.pace, ["tighter", "looser"] as const),
     clean: oneOf(o.clean, ["isolate", "standard"] as const),
+    ...(extrasOf(o.extras) ? { extras: extrasOf(o.extras)! } : {}),
   };
+}
+
+function extrasOf(raw: unknown): Extras | null {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const out: Extras = {};
+  for (const k of ["establishing", "ambience", "score"] as const) if (o[k] === true) out[k] = true;
+  return Object.keys(out).length ? out : null;
 }
 
 /** The note still waiting for Loupe's answer, if the newest one is. */

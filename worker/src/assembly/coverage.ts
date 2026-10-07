@@ -8,7 +8,7 @@
 //   script.
 // - Picture: the vision model says which actor each take is on (vision.ts);
 //   within one actor's takes, where the frames change most is where the
-//   medium shot became the close-up (Reelarc shoots each actor medium first,
+//   medium shot became the close-up (each actor is usually shot medium first,
 //   then close).
 
 import { fft, ffmpegPipe, frameLevels, hanning, percentile } from "./audio.js";
@@ -208,8 +208,8 @@ export function signatureDistance(a: Float32Array, b: Float32Array): number {
  * Where a run of takes changes setup: the split that keeps each side's takes
  * most alike (every take compared with every other, so one odd moment, like an
  * actor walking into frame, can't move it). Kept only when the two sides
- * differ clearly more than the takes within them. One split at most: Reelarc
- * shoots each actor in two setups, medium then close.
+ * differ clearly more than the takes within them. One split at most: an actor
+ * is usually covered in two setups, medium then close.
  */
 export function setupSplits(d: number[][], from = 0, to = d.length): number[] {
   const n = to - from;

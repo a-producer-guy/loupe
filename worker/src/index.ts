@@ -1,12 +1,15 @@
-// The proxy worker: an always-on loop that takes waiting proxy jobs, downloads
-// each raw clip from B2, makes its ProRes Proxy, uploads it to the shoot's
-// Proxies/ folder, and records the result. Safe to restart at any time: a job
-// cut off mid-way goes back in the queue.
+// Loupe's worker: an always-on loop that takes waiting proxy jobs, downloads
+// each raw clip from B2, makes its ProRes Proxy, uploads it to the scene's
+// Proxies/ folder, and records the result. Beside it, with FAL_KEY set, the
+// cut loop (assembly/job.ts) cuts scenes one at a time. Safe to restart at any
+// time: a job cut off mid-way goes back in the queue.
 
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readdir, rm, stat, statfs } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { FalClient } from "./ai/fal.js";
+import { runAssemblyLoop } from "./assembly/job.js";
 import { loadConfig } from "./config.js";
 import { claimJob, connect, heartbeat, markDone, markFailed, markSkipped, releaseJobs, requeueStale, type Job } from "./jobs.js";
 import { buildThumbnailArgs, makeProxy, PermanentProxyError, runFfmpeg, unsupportedFormatReason } from "./proxy.js";
@@ -18,6 +21,9 @@ const storage = createStorage(config.b2);
 const workerId = `${os.hostname()}-${process.pid}-${randomUUID().slice(0, 8)}`;
 const running = new Map<number, { controller: AbortController; done: Promise<void> }>();
 let stopping = false;
+// The cut loop, when FAL_KEY is set: stopped with the worker.
+const cuts = new AbortController();
+let cutLoop: Promise<void> | null = null;
 
 const log = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
 
@@ -151,9 +157,22 @@ async function main() {
   await mkdir(config.workDir, { recursive: true });
   // Leftovers from a previous run that was cut off.
   for (const entry of await readdir(config.workDir)) {
-    if (entry.startsWith("job-")) await rm(path.join(config.workDir, entry), { recursive: true, force: true });
+    if (entry.startsWith("job-") || entry.startsWith("cut-")) await rm(path.join(config.workDir, entry), { recursive: true, force: true });
   }
   log(`Proxy worker ${workerId} started (${config.concurrency} at a time).`);
+  const falKey = process.env.FAL_KEY?.trim();
+  if (falKey) {
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        cuts.signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
+      });
+    cutLoop = runAssemblyLoop({ sql, storage, fal: new FalClient(falKey), tools: config.tools, workDir: config.workDir, workerId, signal: cuts.signal, log, sleep }).catch((error) =>
+      log(`The cut loop stopped: ${error instanceof Error ? error.message : error}`),
+    );
+  } else {
+    log("Cuts: off (no FAL_KEY).");
+  }
 
   let lastStaleCheck = 0;
   while (!stopping) {
@@ -177,7 +196,9 @@ async function shutdown(signalName: string) {
   log(`${signalName}: stopping, handing ${running.size} job(s) back to the queue.`);
   const ids = [...running.keys()];
   for (const { controller } of running.values()) controller.abort(new Error("Worker shutting down."));
+  cuts.abort(new Error("Worker shutting down."));
   await Promise.allSettled([...running.values()].map((r) => r.done));
+  await cutLoop?.catch(() => {});
   await releaseJobs(sql, ids, workerId).catch(() => {});
   await sql.end({ timeout: 5 });
   process.exit(0);

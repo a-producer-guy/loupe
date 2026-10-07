@@ -2,8 +2,8 @@
 // which script it is (one from the library, or the lines worked out from the
 // takes), who each take is on and how close, and which part the client plays.
 //
-// The picture says who each take is on (vision.ts; the first take is the
-// client's, as Reelarc films the client first). The sound says whose voice is
+// The picture says who each take is on (vision.ts; the first take is taken as
+// the lead's, who tends to be filmed first). The sound says whose voice is
 // whose: a line is louder in the takes of the actor who says it, at least in
 // one actor's takes (coverage.ts).
 
@@ -288,7 +288,7 @@ export async function workOutScene(opts: {
   const found: Record<string, Setup | "insert" | null> = {};
   aligned.forEach((x, t) => (found[x.take] = inserts.has(x.take) ? "insert" : who[t] ? { who: who[t]!, framing: framings[t] ?? ("medium" as Framing) } : null));
 
-  // 6. The client: the first take's actor (Reelarc films the client's coverage first), unless corrected.
+  // 6. The lead (the engine's "client"): the first take's actor, unless "Whose scene is it?" says otherwise.
   const firstOn = who.find((w) => w !== null) ?? a;
   const client = corrections.client && roles.includes(corrections.client) ? corrections.client : firstOn;
   const fixed = corrections.coverage ?? {};

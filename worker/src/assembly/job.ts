@@ -1,6 +1,6 @@
-// The first assembly queue (footage_assemblies): the shoot page adds a row,
-// the mover service takes it, makes the assembly (run.ts), puts the package
-// in the shoot's "First Assembly" folder in B2 and records the result. Safe
+// The cut queue (loupe_cuts): the app adds a row once a scene's proxies are
+// ready (or for a note), the worker takes it, makes the cut (run.ts), puts the
+// package in the scene's "Loupe Cut" folder in B2 and records the result. Safe
 // to restart at any time: a job cut off mid-way goes back in the queue.
 
 import { mkdir, mkdtemp, readFile, rm, statfs, writeFile } from "node:fs/promises";
@@ -10,6 +10,7 @@ import type { Sql } from "../jobs.js";
 import type { Tools } from "../proxy.js";
 import type { Storage } from "../storage.js";
 import type { Setup } from "./engine.js";
+import { CUT_FOLDER } from "./finish.js";
 import { makeAssembly, type Shoot, type ShootTake, type Step } from "./run.js";
 import type { LibraryScript } from "./scene.js";
 import type { ScriptLine, Word } from "./text.js";
@@ -21,9 +22,10 @@ export type AssemblyJob = {
   id: number;
   project_id: number;
   script_id: number | null;
-  client_role: string | null;
+  /** Whose scene it is ("Whose scene is it?"), when set: the engine's "client". */
+  lead_role: string | null;
   coverage: Record<string, Setup | null> | null;
-  /** The director's notes to Loupe (direction.ts); null before migration 0017 or when there are none. */
+  /** The director's notes to Loupe (direction.ts); null when there are none. */
   direction: unknown;
   attempts: number;
 };
@@ -35,62 +37,49 @@ const toJob = (row: Record<string, unknown>): AssemblyJob => ({
   id: Number(row.id),
   project_id: Number(row.project_id),
   script_id: row.script_id == null ? null : Number(row.script_id),
-  client_role: row.client_role == null ? null : String(row.client_role),
+  lead_role: row.lead_role == null ? null : String(row.lead_role),
   coverage: (row.coverage as AssemblyJob["coverage"]) ?? null,
   direction: row.direction ?? null,
   attempts: Number(row.attempts),
 });
 
-/** Takes the oldest waiting assembly, or returns null. */
+/**
+ * Takes the next waiting cut, or returns null. Fair between customers: the oldest waiting cut of the account whose
+ * last cut started longest ago goes first, so one account dropping ten scenes doesn't hold up everyone else.
+ */
 export async function claimAssembly(sql: Sql, workerId: string): Promise<AssemblyJob | null> {
-  try {
-    const rows = await sql`
-      update footage_assemblies a
-         set status = 'working', attempts = a.attempts + 1, locked_by = ${workerId}, locked_at = now(),
-             started_at = coalesce(a.started_at, now()), step = 'listening', error = null
-       where a.id = (
-         select id from footage_assemblies
-          where status = 'waiting'
-          order by id
-          limit 1
-          for update skip locked)
-      returning a.id, a.project_id, a.script_id, a.client_role, a.coverage, a.direction, a.attempts`;
-    return rows[0] ? toJob(rows[0]) : null;
-  } catch (error) {
-    // Before migration 0017 there are no notes to Loupe: as before.
-    if ((error as { code?: string }).code !== "42703") throw error;
-  }
   const rows = await sql`
-    update footage_assemblies a
-       set status = 'working', attempts = a.attempts + 1, locked_by = ${workerId}, locked_at = now(),
-           started_at = coalesce(a.started_at, now()), step = 'listening', error = null
-     where a.id = (
-       select id from footage_assemblies
-        where status = 'waiting'
-        order by id
+    update loupe_cuts c
+       set status = 'working', attempts = c.attempts + 1, locked_by = ${workerId}, locked_at = now(),
+           started_at = coalesce(c.started_at, now()), step = 'listening', error = null
+     where c.id = (
+       select w.id from loupe_cuts w join loupe_projects p on p.id = w.project_id
+        where w.status = 'waiting'
+        order by (select max(x.started_at) from loupe_cuts x join loupe_projects q on q.id = x.project_id
+                   where q.account_id = p.account_id and x.id <> w.id) asc nulls first, w.id
         limit 1
-        for update skip locked)
-    returning a.id, a.project_id, a.script_id, a.client_role, a.coverage, a.attempts`;
+        for update of w skip locked)
+    returning c.id, c.project_id, c.script_id, c.lead_role, c.coverage, c.direction, c.attempts`;
   return rows[0] ? toJob(rows[0]) : null;
 }
 
 /** Records the step and keeps the job ours. False: it was taken back. */
 export async function touchAssembly(sql: Sql, id: number, workerId: string, step?: Step): Promise<boolean> {
   const rows = step
-    ? await sql`update footage_assemblies set step = ${step}, locked_at = now() where id = ${id} and locked_by = ${workerId} and status = 'working' returning id`
-    : await sql`update footage_assemblies set locked_at = now() where id = ${id} and locked_by = ${workerId} and status = 'working' returning id`;
+    ? await sql`update loupe_cuts set step = ${step}, locked_at = now() where id = ${id} and locked_by = ${workerId} and status = 'working' returning id`
+    : await sql`update loupe_cuts set locked_at = now() where id = ${id} and locked_by = ${workerId} and status = 'working' returning id`;
   return rows.length > 0;
 }
 
 /** Keeps Loupe's answer to a note (the shoot page shows it while the assembly is made again). */
 export async function saveDirection(sql: Sql, id: number, workerId: string, direction: Direction) {
-  await sql`update footage_assemblies set direction = ${sql.json(direction as never)} where id = ${id} and locked_by = ${workerId}`;
+  await sql`update loupe_cuts set direction = ${sql.json(direction as never)} where id = ${id} and locked_by = ${workerId}`;
 }
 
 /** The shoot's last finished assembly before this one: the cut a note is about. */
 export async function lastDone(sql: Sql, projectId: number, before: number): Promise<AssemblyResult | null> {
   const [row] = await sql`
-    select result from footage_assemblies
+    select result from loupe_cuts
      where project_id = ${projectId} and id < ${before} and status = 'done' and result is not null
      order by id desc limit 1`;
   return row ? (row.result as AssemblyResult) : null;
@@ -115,7 +104,7 @@ export function cutContext(result: AssemblyResult, direction: Direction): CutCon
 
 export async function finishAssembly(sql: Sql, id: number, workerId: string, result: object) {
   await sql`
-    update footage_assemblies
+    update loupe_cuts
        set status = 'done', step = null, result = ${sql.json(result as never)}, error = null,
            finished_at = now(), locked_by = null, locked_at = null
      where id = ${id} and locked_by = ${workerId}`;
@@ -125,7 +114,7 @@ export async function finishAssembly(sql: Sql, id: number, workerId: string, res
 export async function failAssembly(sql: Sql, job: AssemblyJob, workerId: string, message: string) {
   const giveUp = job.attempts >= MAX_ATTEMPTS;
   await sql`
-    update footage_assemblies
+    update loupe_cuts
        set status = ${giveUp ? "failed" : "waiting"}, step = null, error = ${message.slice(0, 500)},
            finished_at = ${giveUp ? sql`now()` : null}, locked_by = null, locked_at = null
      where id = ${job.id} and locked_by = ${workerId}`;
@@ -134,16 +123,16 @@ export async function failAssembly(sql: Sql, job: AssemblyJob, workerId: string,
 /** Hands a job back without counting the try (the service is stopping). */
 export async function releaseAssembly(sql: Sql, id: number, workerId: string) {
   await sql`
-    update footage_assemblies set status = 'waiting', attempts = greatest(attempts - 1, 0), step = null, locked_by = null, locked_at = null
+    update loupe_cuts set status = 'waiting', attempts = greatest(attempts - 1, 0), step = null, locked_by = null, locked_at = null
      where id = ${id} and locked_by = ${workerId} and status = 'working'`;
 }
 
 /** Assemblies whose worker vanished (crashed, redeployed) go back in the queue. */
 export async function requeueStaleAssemblies(sql: Sql, staleMinutes = 15): Promise<number> {
   const rows = await sql`
-    update footage_assemblies
+    update loupe_cuts
        set status = case when attempts >= ${MAX_ATTEMPTS} then 'failed' else 'waiting' end,
-           error = 'The worker stopped while making this assembly.',
+           error = 'Loupe was interrupted while cutting this; it tries again by itself.',
            finished_at = case when attempts >= ${MAX_ATTEMPTS} then now() else null end,
            step = null, locked_by = null, locked_at = null
      where status = 'working' and locked_at < now() - make_interval(mins => ${staleMinutes})
@@ -154,13 +143,13 @@ export async function requeueStaleAssemblies(sql: Sql, staleMinutes = 15): Promi
 /** The shoot as the assembly needs it: every clip with a finished proxy and web preview. */
 export async function loadShoot(sql: Sql, projectId: number): Promise<Shoot> {
   const [p] = await sql`
-    select p.id, p.name, p.storage_prefix, l.id as lut_id, l.name as lut_name, l.storage_key as lut_key
-      from footage_projects p left join footage_luts l on l.id = p.lut_id
+    select p.id, p.account_id, p.name, p.storage_prefix, l.id as lut_id, l.name as lut_name, l.storage_key as lut_key
+      from loupe_projects p left join loupe_luts l on l.id = p.lut_id
      where p.id = ${projectId}`;
-  if (!p) throw new Error("The shoot isn't there any more.");
+  if (!p) throw new Error("The scene isn't there any more.");
   const rows = await sql`
     select f.path, j.proxy_key, j.media, j.made_with_lut_id
-      from footage_files f join footage_proxy_jobs j on j.file_id = f.id
+      from loupe_files f join loupe_proxy_jobs j on j.file_id = f.id
      where f.project_id = ${projectId} and j.status = 'done' and j.preview_size_bytes is not null
      order by f.path`;
   const lutName = p.lut_name == null ? null : String(p.lut_name);
@@ -168,6 +157,7 @@ export async function loadShoot(sql: Sql, projectId: number): Promise<Shoot> {
   const safe = lutName?.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "-").replace(/^[.\s-]+|[.\s]+$/g, "").slice(0, 80);
   return {
     id: Number(p.id),
+    accountId: Number(p.account_id),
     name: String(p.name),
     prefix: String(p.storage_prefix),
     lut: p.lut_key ? { key: String(p.lut_key), name: lutName!, fileName: `${safe || `LUT ${p.lut_id}`}.cube` } : null,
@@ -181,9 +171,20 @@ export async function loadShoot(sql: Sql, projectId: number): Promise<Shoot> {
   };
 }
 
-export async function loadLibrary(sql: Sql): Promise<LibraryScript[]> {
-  const rows = await sql`select id, title, lines, heading from footage_scripts order by id`;
-  return rows.map((r) => ({ id: Number(r.id), title: String(r.title), lines: r.lines as ScriptLine[], heading: r.heading == null ? null : String(r.heading) }));
+/**
+ * The scripts this scene may be: only its own account's (never another customer's). One that came in with the scene's
+ * own folder comes first, and is the one used when nothing else is said.
+ */
+export async function loadLibrary(sql: Sql, accountId: number, projectId: number): Promise<{ library: LibraryScript[]; own: number | null }> {
+  const rows = await sql`
+    select id, title, lines, heading, project_id from loupe_scripts
+     where account_id = ${accountId}
+     order by (project_id = ${projectId}) desc nulls last, id desc`;
+  const own = rows.find((r) => r.project_id != null && Number(r.project_id) === projectId);
+  return {
+    library: rows.map((r) => ({ id: Number(r.id), title: String(r.title), lines: r.lines as ScriptLine[], heading: r.heading == null ? null : String(r.heading) })),
+    own: own ? Number(own.id) : null,
+  };
 }
 
 export type AssemblyContext = {
@@ -211,13 +212,13 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
   }, 30_000);
   const signal = controller.signal;
   let dir: string | undefined;
-  const label = `[assembly ${job.id}, shoot ${job.project_id}]`;
+  const label = `[cut ${job.id}, scene ${job.project_id}]`;
   const log = (line: string) => ctx.log(`${label} ${line}`);
   try {
     await mkdir(ctx.workDir, { recursive: true });
     const disk = await statfs(ctx.workDir);
-    if (disk.bavail * disk.bsize < 3e9) throw new Error("The worker's disk is too full for an assembly right now.");
-    dir = await mkdtemp(path.join(ctx.workDir, `assembly-${job.id}-`));
+    if (disk.bavail * disk.bsize < 3e9) throw new Error("Loupe's worker is short of room right now; it'll try again shortly.");
+    dir = await mkdtemp(path.join(ctx.workDir, `cut-${job.id}-`));
     // A note to Loupe first (Guy, Oct 6): Claude reads it against the last cut and answers; the answer shows on the
     // shoot page while the assembly is made again with the change. A question, or nothing it can change: the last
     // cut stays, with the answer.
@@ -230,7 +231,7 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
         log(`Couldn't read the note (${e.message}).`);
         return null;
       }) : null;
-      const reply = reading?.reply ?? (previous ? "Sorry, I didn't catch that one. Could you say it another way?" : "There's no cut to change yet: make the first assembly, then tell me what to change.");
+      const reply = reading?.reply ?? (previous ? "Sorry, I didn't catch that one. Could you say it another way?" : "There's no cut to change yet. Once the first one's ready, tell me what to change.");
       direction = { ...(reading?.direction ?? direction), notes: [...(direction.notes ?? []).slice(0, -1), { ...pending, reply }] };
       await saveDirection(ctx.sql, job.id, ctx.workerId, direction);
       log(`Note: "${pending.note}" → ${reading?.remake ? "making it again" : "no change"}: ${reply}`);
@@ -241,13 +242,12 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
       }
     }
     const shoot = await loadShoot(ctx.sql, job.project_id);
-    const library = await loadLibrary(ctx.sql);
-    log(`${shoot.takes.length} takes, ${library.length} scripts in the library (try ${job.attempts}).`);
-    const folder = `${shoot.prefix}/First Assembly`;
-    // Transcripts are kept beside the package, so "Make again" doesn't transcribe twice.
-    const transcriptKey = (t: ShootTake) => `${shoot.prefix}/Assembly work/${path.posix.basename(t.proxyKey)}.words.json`;
-    // Made to match the scene's own frames since Oct 5 (an older one, from words alone, stays where it was).
-    const establishingKey = `${shoot.prefix}/Assembly work/establishing-matched.mp4`;
+    const { library, own } = await loadLibrary(ctx.sql, shoot.accountId!, shoot.id);
+    log(`${shoot.takes.length} takes, ${library.length} scripts in the account${own ? ", one from the scene's folder" : ""} (try ${job.attempts}).`);
+    const folder = `${shoot.prefix}/${CUT_FOLDER}`;
+    // Transcripts are kept beside the package, so a note doesn't transcribe twice.
+    const transcriptKey = (t: ShootTake) => `${shoot.prefix}/Loupe work/${path.posix.basename(t.proxyKey)}.words.json`;
+    const establishingKey = `${shoot.prefix}/Loupe work/establishing-matched.mp4`;
     const { result, files } = await makeAssembly(
       {
         tools: ctx.tools,
@@ -286,7 +286,7 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
       },
       shoot,
       library,
-      { scriptId: job.script_id, client: job.client_role, coverage: job.coverage },
+      { scriptId: job.script_id ?? own, client: job.lead_role, coverage: job.coverage },
       { direction },
     );
     for (const f of files) {
@@ -312,16 +312,16 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
   }
 }
 
-/** Takes first assemblies off the queue one at a time until `signal` stops it (the mover service runs this). */
+/** Takes cuts off the queue one at a time until `signal` stops it. */
 export async function runAssemblyLoop(ctx: AssemblyContext & { sleep: (ms: number) => Promise<void> }) {
-  ctx.log("First assemblies: on.");
+  ctx.log("Cuts: on.");
   let lastStaleCheck = 0;
   while (!ctx.signal.aborted) {
     try {
       if (Date.now() - lastStaleCheck > 5 * 60_000) {
         lastStaleCheck = Date.now();
         const requeued = await requeueStaleAssemblies(ctx.sql);
-        if (requeued) ctx.log(`Put ${requeued} interrupted first assembl${requeued === 1 ? "y" : "ies"} back in the queue.`);
+        if (requeued) ctx.log(`Put ${requeued} interrupted cut${requeued === 1 ? "" : "s"} back in the queue.`);
       }
       const job = await claimAssembly(ctx.sql, ctx.workerId);
       if (!job) {
@@ -330,13 +330,13 @@ export async function runAssemblyLoop(ctx: AssemblyContext & { sleep: (ms: numbe
       }
       await runAssemblyJob(ctx, job);
     } catch (error) {
-      // Before the database has the first assembly tables (migration 0014), wait quietly.
+      // Before the database has the cut tables (migration 0001), wait quietly.
       if ((error as { code?: string }).code === "42P01") {
-        ctx.log("First assemblies wait for the database update (migration 0014).");
+        ctx.log("Cuts wait for the database update (migration 0001_cuts).");
         await ctx.sleep(10 * 60_000);
         continue;
       }
-      ctx.log(`first assemblies: ${(error as Error).message}`);
+      ctx.log(`cuts: ${(error as Error).message}`);
       await ctx.sleep(60_000);
     }
   }
