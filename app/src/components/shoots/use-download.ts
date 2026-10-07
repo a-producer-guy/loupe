@@ -7,7 +7,7 @@ import { useState, useSyncExternalStore } from "react";
 // go a few at a time; running it again skips files already there, so an
 // interrupted download carries on where it stopped. Needs Chrome or Edge.
 
-type Item = { kind: "raw" | "proxy" | "lut"; id: number; path: string; size: number };
+type Item = { kind: "raw" | "proxy" | "lut" | "cut"; id: number; path: string; size: number };
 type Picker = (options?: { id?: string; mode?: "read" | "readwrite"; startIn?: string }) => Promise<FileSystemDirectoryHandle>;
 
 export type DownloadState =

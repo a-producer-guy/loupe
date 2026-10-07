@@ -1,13 +1,10 @@
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
-import { files, proxyJobs, scripts } from "@/lib/db/schema";
 import { jsonError, readJson, route, shootIdFrom } from "@/lib/api";
 import { ownedShoot } from "@/lib/footage/access";
-import { addNote, CutError, cutState, MAX_NOTE, pickTake, requestCut, setExtra } from "@/lib/footage/cuts";
-import { previewKey, thumbnailKey } from "@/lib/footage/names";
-import { signView } from "@/lib/storage";
+import { addNote, CutError, MAX_NOTE, pickTake, requestCut, setExtra } from "@/lib/footage/cuts";
+import { roomCut } from "@/lib/footage/room";
 
 // A scene's cut: GET is everything the cutting room shows (and starts the first cut once it's due); POST directs it.
 
@@ -19,37 +16,7 @@ export const GET = route(async (_request, ctx: RouteContext<"/api/shoots/[id]/cu
   const db = getDb();
   const scene = id ? await ownedShoot(db, member, id) : null;
   if (!scene) return jsonError(404, "That scene doesn't exist.");
-  const state = await cutState(db, scene.id, scene.storagePrefix, member.email, signView);
-  const result = state.done?.result;
-  let takes: Record<string, { still: string | null; preview: string | null; seconds: number | null }> = {};
-  if (result) {
-    const rows = await db
-      .select({ path: files.path, key: proxyJobs.proxyKey, preview: proxyJobs.previewSizeBytes, media: proxyJobs.media, look: proxyJobs.madeWithLutId })
-      .from(files)
-      .innerJoin(proxyJobs, eq(proxyJobs.fileId, files.id))
-      .where(and(eq(files.projectId, scene.id), eq(proxyJobs.status, "done")));
-    const byPath = new Map(rows.map((r) => [r.path, r]));
-    takes = Object.fromEntries(
-      await Promise.all(
-        result.takes.map(async (t) => {
-          const row = byPath.get(t.path);
-          const look = row?.look ? `look-${row.look}` : undefined;
-          return [
-            t.take,
-            {
-              still: row ? await signView(thumbnailKey(row.key), look) : null,
-              preview: row && row.preview !== null ? await signView(previewKey(row.key), `${look ?? "take"}-${row.key.length}`, "mp4") : null,
-              seconds: (row?.media as { durationSeconds?: number } | null)?.durationSeconds ?? null,
-            },
-          ] as const;
-        }),
-      ),
-    );
-  }
-  const heading = result?.scriptId
-    ? ((await db.select({ heading: scripts.heading }).from(scripts).where(and(eq(scripts.id, result.scriptId), eq(scripts.accountId, member.accountId))))[0]?.heading ?? null)
-    : null;
-  return Response.json({ cut: { ...state, takes, heading } });
+  return Response.json({ cut: await roomCut(db, scene, member.email, member.accountId) });
 });
 
 const Body = z.discriminatedUnion("action", [

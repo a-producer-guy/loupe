@@ -1,0 +1,303 @@
+/* Loupe's cutting room, from the approved mockup (https://claude.ai/artifact/9SC3u71fLJ2FUQRXZV5wt4), kept as
+   it was and scoped to .room so it can't reach other pages. The mockup's names for colours map onto the app's. */
+.room{
+  --ground:var(--bg); --sunk:var(--surface-2); --sunk2:var(--surface-3);
+  --hair:var(--line); --hair2:var(--line-strong);
+  --ink:var(--text); --ink2:var(--muted); --ink3:var(--faint); --ink4:#C3C3BC;
+  --ok:var(--good); --ok-soft:var(--good-soft);
+  --lead:#C29A6E; --other:#8399AC;
+  --r-lg:18px; --r-md:12px; --r-sm:8px;
+  --sans:var(--font-sans); --mono:var(--font-mono); --script:var(--font-script), "Courier New", Courier, monospace;
+  font-family:var(--sans); font-size:14px; line-height:1.5; color:var(--ink); -webkit-font-smoothing:antialiased;
+}
+.room button{font:inherit; color:inherit; cursor:pointer; background:none; border:0; padding:0}
+.room [hidden]{display:none !important}
+/* top: floating, no bar */
+.room .top{display:flex; align-items:center; gap:16px; padding:18px 24px 10px}
+.room .mark{display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:17px; letter-spacing:-.03em; color:var(--ink)}
+.room .mark svg{display:block; filter:drop-shadow(0 1px 2px rgba(20,20,18,.12))}
+.room .scene{font-size:13px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.room .scene b{color:var(--ink); font-weight:500}
+.room .top-r{margin-left:auto; display:flex; align-items:center; gap:14px}
+.room .note{font-size:12px; color:var(--ink3)}
+.room .btn{display:inline-flex; align-items:center; gap:8px; background:var(--ink); color:#fff; font-weight:500; font-size:13.5px; padding:9px 15px; border-radius:10px; white-space:nowrap; transition:transform .15s, box-shadow .15s}
+.room .btn:hover{box-shadow:0 4px 14px rgba(20,20,18,.18)}
+.room .btn:active{transform:scale(.98)}
+.room .btn.soft{background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--hair2)}
+.room .btn.soft:hover{box-shadow:0 0 0 1px var(--ink3), var(--lift-sm)}
+.room .textlink{color:var(--ink2); text-decoration:underline; text-decoration-color:var(--ink4); text-underline-offset:4px}
+.room .textlink:hover{color:var(--ink); text-decoration-color:var(--ink)}
+.room main{flex:1; display:flex; flex-direction:column; min-height:0}
+.room .view{flex:1; min-height:0}
+.room .ingest{display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:28px 56px; padding:22px 24px 64px; max-width:1300px; margin:0 auto; width:100%}
+.room .ing-main{display:grid; gap:22px; align-content:start; min-width:0}
+.room .ing-k{font-size:13px; color:var(--ink3)}
+.room .gb{font-weight:300; font-size:clamp(48px,7vw,92px); letter-spacing:-.05em; line-height:1; font-variant-numeric:tabular-nums}
+.room .gb small{font-size:.24em; font-weight:400; letter-spacing:0; color:var(--ink3); margin-left:.5em}
+.room .lines{display:grid; gap:12px; max-width:640px}
+.room .pline{display:grid; grid-template-columns:76px minmax(0,1fr) 100px; gap:14px; align-items:center; font-size:12.5px; color:var(--ink3)}
+.room .pline .track{height:3px; border-radius:2px; background:var(--sunk2); overflow:hidden}
+.room .pline i{display:block; height:100%; width:0; background:var(--ink); border-radius:2px; transition:width .2s linear}
+.room .pline b{font-weight:400; color:var(--ink2); text-align:right; font-variant-numeric:tabular-nums}
+.room .safe{display:flex; align-items:center; gap:12px; background:var(--ok-soft); color:var(--ok); border-radius:var(--r-md); padding:13px 16px; font-size:16px; font-weight:500; max-width:640px; animation:rise .5s ease-out}
+.room .card-k{font-size:12px; color:var(--ink3); margin:8px 0 12px; display:flex; gap:10px}
+.room .card-k b{color:var(--ink); font-weight:500}
+.room .tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:18px 14px}
+.room .tile{min-width:0}
+.room .thumb{aspect-ratio:16/9; border-radius:var(--r-sm); overflow:hidden; background:#151513; box-shadow:var(--lift-sm)}
+.room .thumb img{width:100%; height:100%; object-fit:cover; display:block; transition:opacity .5s, filter .5s}
+.room .tile.queued img{opacity:.25; filter:grayscale(1)}
+.room .tile.uploading img, .room .tile.waiting img{opacity:.6; filter:grayscale(.6)}
+.room .tname{font-size:12px; color:var(--ink2); margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.room .tmeta{display:flex; justify-content:space-between; gap:8px; font-size:11.5px; color:var(--ink3); font-variant-numeric:tabular-nums}
+.room .tile.done.video .st{color:var(--ok)}
+.room .tbar{height:2px; border-radius:1px; background:var(--sunk2); margin-top:7px; overflow:hidden}
+.room .tbar i{display:block; height:100%; width:0; background:var(--ink3)}
+.room .tile.proxy .tbar i, .room .tile.done .tbar i{background:var(--ink)}
+.room .more{font-size:12px; color:var(--ink3); margin-top:10px}
+.room .side{display:grid; gap:26px; align-content:start; padding-top:4px}
+.room .side h3{font-size:12px; font-weight:500; color:var(--ink3); margin:0 0 8px}
+.room .side p{margin:6px 0 0; font-size:13px; color:var(--ink2)}
+.room .filerow{display:flex; align-items:center; gap:10px; font-weight:500}
+.room .slot{border:1.5px dashed var(--hair2); border-radius:var(--r-md); padding:16px; text-align:center; color:var(--ink3); font-size:13px}
+.room .slot.want{border-color:var(--tally); color:var(--ink2)}
+.room .segctl{display:grid; grid-template-columns:repeat(3,1fr); background:var(--sunk); border-radius:10px; padding:3px; gap:3px}
+.room .segctl button{padding:7px 4px; border-radius:8px; font-size:13px; color:var(--ink2); transition:background .15s, box-shadow .15s}
+.room .segctl button[aria-pressed="true"]{background:var(--surface); color:var(--ink); box-shadow:var(--lift-sm); font-weight:500}
+.room .dl{display:grid; gap:7px; font-size:12.5px}
+.room .dl div{display:flex; justify-content:space-between; gap:12px; color:var(--ink3); border-top:1px solid var(--hair); padding-top:7px}
+.room .dl b{font-weight:400; color:var(--ink2); text-align:right}
+.room .suite{display:grid; grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr); gap:0 36px; padding:8px 24px 0; position:relative}
+@media (min-width:980px){
+.room.editing{height:100%}
+.room.editing .suite{height:100%; overflow:hidden}
+.room .stage{height:100%; overflow:auto; padding-bottom:130px}
+.room .scriptcol{height:100%; overflow:auto; padding-bottom:150px}
+}
+.room .stage{display:grid; gap:14px; align-content:start; min-width:0}
+.room .picture{position:relative; aspect-ratio:16/9; border-radius:var(--r-lg); overflow:hidden; background:#121210; box-shadow:var(--lift)}
+.room .picture > img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+.room .picture > img.kb{animation:kb 8s linear forwards}
+@keyframes kb{from{transform:scale(1)}to{transform:scale(1.04)}}
+.room .sub{position:absolute; left:10%; right:10%; bottom:8%; text-align:center; color:#fff; font-size:clamp(14px,1.55vw,19px); font-weight:500; line-height:1.3; text-shadow:0 1px 3px rgba(0,0,0,.85), 0 0 18px rgba(0,0,0,.45); text-wrap:balance; pointer-events:none}
+.room .sub .w{color:rgba(255,255,255,.45); transition:color .1s}
+.room .sub .w.said{color:#fff}
+.room .pic-ctx{position:absolute; left:14px; top:14px; display:flex; align-items:center; gap:8px; opacity:0; transform:translateY(-4px); transition:opacity .25s, transform .25s}
+.room .picture:hover .pic-ctx, .room .picture:focus-within .pic-ctx, .room .picture.paused .pic-ctx{opacity:1; transform:none}
+.room .chip{display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,.92); color:var(--ink); font-size:12.5px; padding:6px 11px; border-radius:999px; box-shadow:0 2px 10px rgba(0,0,0,.18); backdrop-filter:blur(8px)}
+.room .chip .dot{width:7px; height:7px; border-radius:50%; background:var(--tally)}
+.room button.chip:hover{background:#fff}
+.room .pp{position:absolute; inset:0; display:grid; place-items:center; opacity:0; transition:opacity .2s}
+.room .picture:hover .pp, .room .picture.paused .pp{opacity:1}
+.room .pp span{width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,.9); display:grid; place-items:center; box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.room .mosaic{position:absolute; inset:0; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(3,1fr); gap:3px; padding:3px; background:#121210; transition:opacity .8s}
+.room .mosaic img{width:100%; height:100%; object-fit:cover; border-radius:6px; opacity:0; transform:scale(.94); transition:opacity .5s, transform .5s}
+.room .mosaic img.on{opacity:.9; transform:none}
+.room .proc{position:absolute; left:0; right:0; bottom:0; padding:60px 22px 20px; background:linear-gradient(transparent, rgba(10,10,9,.82)); color:#fff}
+.room .proc-row{display:flex; align-items:center; gap:14px}
+.room .proc small{display:block; font-size:12px; color:rgba(255,255,255,.6); margin-bottom:4px; font-variant-numeric:tabular-nums}
+.room #procText{font-size:clamp(20px,2.6vw,32px); font-weight:500; letter-spacing:-.025em; line-height:1.1}
+.room .proc .bar{height:2px; background:rgba(255,255,255,.2); border-radius:1px; margin-top:14px; overflow:hidden}
+.room .proc .bar i{display:block; height:100%; width:0; background:#fff; transition:width .4s ease}
+.room .underpic{display:flex; align-items:baseline; gap:14px; font-size:12.5px; color:var(--ink3); padding:0 4px}
+.room .tc{font-family:var(--mono); font-size:13px; color:var(--ink); font-variant-numeric:tabular-nums}
+.room .underpic .now{color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.room .underpic .dur{margin-left:auto; white-space:nowrap}
+.room .filmstrip{position:relative; height:52px; display:flex; gap:2px; border-radius:10px; overflow:hidden; cursor:pointer; background:var(--sunk)}
+.room .fs{position:relative; height:100%; overflow:hidden; flex:none; transition:opacity .2s, filter .2s}
+.room .fs img{width:100%; height:100%; object-fit:cover; display:block; pointer-events:none}
+.room .filmstrip.live .fs{opacity:.55; filter:saturate(.7)}
+.room .filmstrip.live .fs.on{opacity:1; filter:none}
+.room .fs.reaction::after{content:""; position:absolute; left:0; right:0; top:0; height:3px; background:rgba(255,255,255,.85)}
+.room .fs.who-lead{box-shadow:inset 0 -3px 0 var(--lead)}
+.room .fs.who-other{box-shadow:inset 0 -3px 0 var(--other)}
+.room .ph{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--tally); left:0; pointer-events:none; box-shadow:0 0 0 1px rgba(255,255,255,.6)}
+.room .fs-tip{position:absolute; bottom:calc(100% + 8px); transform:translateX(-50%); background:var(--ink); color:#fff; font-size:12px; padding:6px 10px; border-radius:8px; white-space:nowrap; pointer-events:none; z-index:3}
+.room .stripwrap{position:relative}
+.room .legend{display:flex; gap:16px; font-size:11.5px; color:var(--ink3); padding:0 4px}
+.room .legend span{display:flex; align-items:center; gap:6px}
+.room .legend i{width:12px; height:3px; border-radius:2px; display:block}
+.room .scriptcol{min-width:0}
+.room .page{font-family:var(--script); font-size:15px; line-height:1.55; max-width:640px; padding:4px 0 0 14px}
+.room .slug{font-weight:700; text-transform:uppercase; margin:0 0 6px 86px}
+.room .slug-k{font-family:var(--sans); font-size:12px; color:var(--ink3); margin:0 0 14px 86px}
+.room .act{margin:14px 0 14px 86px; color:var(--ink2)}
+.room .beat{position:relative; display:grid; grid-template-columns:72px minmax(0,1fr); gap:14px; padding:10px 10px 10px 0; border-radius:var(--r-md); transition:background .25s, opacity .3s}
+.room .beat:hover{background:rgba(255,255,255,.65)}
+.room .beat.sel{background:var(--surface); box-shadow:var(--lift-sm)}
+.room .page.playing .beat:not(.active){opacity:.42}
+.room .page.playing .beat:not(.active):hover{opacity:.8}
+.room .bthumb{display:grid; gap:5px; align-content:start; padding-left:2px}
+.room .bthumb button{display:block; border-radius:6px; overflow:hidden; box-shadow:0 0 0 1px var(--hair); transition:box-shadow .2s, transform .2s}
+.room .bthumb button:hover{transform:translateY(-1px); box-shadow:0 0 0 1px var(--hair2), var(--lift-sm)}
+.room .bthumb img{display:block; width:100%; aspect-ratio:16/9; object-fit:cover}
+.room .bthumb .lab{font-family:var(--sans); font-size:10.5px; color:var(--ink3); line-height:1.25}
+.room .bthumb .lab b{font-weight:500; color:var(--ink2)}
+.room .bthumb .rx{display:flex; align-items:center; gap:5px; font-family:var(--sans); font-size:10px; color:var(--ink3)}
+.room .bthumb .rx img{width:26px; border-radius:3px}
+.room .beat.live-shot .bthumb > button{box-shadow:0 0 0 2px var(--tally)}
+.room .bthumb .rx.live img{box-shadow:0 0 0 2px var(--tally)}
+.room .pop{animation:pop .5s cubic-bezier(.2,.9,.3,1.15)}
+@keyframes pop{from{opacity:0; transform:translateX(-10px) scale(.9)}to{opacity:1; transform:none}}
+.room .btext{cursor:pointer; min-width:0}
+.room .char{padding-left:min(15ch,28%); text-transform:uppercase}
+.room .line{padding-left:min(6ch,9%); max-width:40ch}
+.room .beat.active .w{color:var(--ink4)}
+.room .beat.active .w.said{color:var(--ink)}
+.room .w{transition:color .1s}
+.room .pz{font-family:var(--sans); font-size:11.5px; color:var(--ink3); padding-left:min(6ch,9%); margin-bottom:2px}
+.room .marks{font-family:var(--sans); font-size:11px; color:var(--ink3); padding-left:min(6ch,9%); display:flex; gap:10px; margin-top:3px}
+.room .marks span{cursor:help}
+.room .hide-marks .marks, .room .hide-marks .rx{display:none}
+.room .why{font-family:var(--sans); font-size:13px; line-height:1.45; color:var(--ink2); padding-left:min(6ch,9%); max-width:46ch; margin-top:6px; animation:rise .35s ease-out}
+.room .why::before{content:"Why  "; color:var(--ink3)}
+.room .why.heard::before{content:""}
+.room .beat.flash{animation:flash 1.3s ease-out}
+@keyframes flash{0%{background:var(--tally-soft)}100%{background:transparent}}
+@keyframes rise{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+.room .ltools{position:absolute; right:8px; top:8px; display:flex; gap:4px; background:var(--surface); border-radius:10px; padding:3px; box-shadow:var(--lift-sm), 0 0 0 1px var(--hair); opacity:0; transform:translateY(3px); pointer-events:none; transition:opacity .18s, transform .18s; font-family:var(--sans)}
+.room .beat:hover .ltools, .room .beat:focus-within .ltools, .room .beat.sel .ltools{opacity:1; transform:none; pointer-events:auto}
+.room .ltools button{font-size:12px; color:var(--ink2); padding:5px 9px; border-radius:7px; white-space:nowrap}
+.room .ltools button:hover{background:var(--sunk); color:var(--ink)}
+.room .locked .ltools{display:none}
+.room .tray{grid-column:1/-1; margin:2px 0 10px 86px; display:grid; gap:10px; font-family:var(--sans); animation:rise .3s ease-out}
+.room .tray-k{display:flex; align-items:baseline; gap:12px; font-size:12.5px; color:var(--ink3)}
+.room .tray-k b{color:var(--ink); font-weight:500}
+.room .tray-k button{margin-left:auto}
+.room .takes{display:flex; gap:10px; overflow-x:auto; padding:2px 2px 8px}
+.room .take{flex:none; width:206px; background:var(--surface); border-radius:12px; overflow:hidden; box-shadow:0 0 0 1px var(--hair), var(--lift-sm); transition:box-shadow .15s, transform .15s; animation:fan .35s both}
+.room .take:hover{transform:translateY(-2px); box-shadow:0 0 0 1px var(--hair2), var(--lift)}
+.room .take.on{box-shadow:0 0 0 2px var(--ink)}
+.room .take.playing{box-shadow:0 0 0 2px var(--tally), var(--lift)}
+.room .tk-play{display:block; position:relative; width:100%; background:#121210}
+.room .tk-play img{display:block; width:100%; aspect-ratio:16/9; object-fit:cover; transition:transform 3s linear}
+.room .take.playing .tk-play img{transform:scale(1.05)}
+.room .tk-cap{position:absolute; left:8px; right:8px; bottom:9px; text-align:center; color:#fff; font-size:11px; line-height:1.3; text-shadow:0 1px 2px rgba(0,0,0,.9); text-wrap:balance; pointer-events:none}
+.room .tk-cap .w{color:rgba(255,255,255,.55)}
+.room .tk-cap .w.said{color:#fff}
+.room .tk-cap .gap{color:var(--tally); font-weight:600}
+.room .tk-bar{position:absolute; left:0; bottom:0; height:2.5px; width:0; background:var(--tally)}
+.room .tk-dur{position:absolute; top:7px; right:7px; font-family:var(--mono); font-size:10.5px; color:#fff; background:rgba(0,0,0,.5); padding:1px 6px; border-radius:6px}
+.room .tk-pi{position:absolute; top:7px; left:7px; width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,.92); display:grid; place-items:center; opacity:0; transition:opacity .15s}
+.room .take:hover .tk-pi, .room .take.playing .tk-pi{opacity:1}
+.room .tk-foot{padding:9px 11px 11px; display:grid; gap:2px; font-size:12px; color:var(--ink3); line-height:1.35}
+.room .tk-foot b{display:flex; justify-content:space-between; gap:8px; color:var(--ink); font-weight:500}
+.room .tk-foot b em{font-style:normal; font-weight:400; font-size:11px; color:var(--ink2)}
+.room .take.flub .tk-note{color:var(--tally)}
+.room .tk-use{justify-self:start; margin-top:7px; font-size:12px; font-weight:500; color:var(--ink); padding:5px 10px; border-radius:8px; background:var(--sunk)}
+.room .tk-use:hover{background:var(--sunk2)}
+.room .tray-k .cmp{display:inline-flex; align-items:center; gap:6px; margin-left:auto; font-size:12.5px; color:var(--ink); font-weight:500; padding:5px 11px; border-radius:9px; background:var(--surface); box-shadow:0 0 0 1px var(--hair2)}
+.room .tray-k .cmp:hover{box-shadow:0 0 0 1px var(--ink3), var(--lift-sm)}
+.room .tray-k .cmp + button{margin-left:6px}
+.room .aud{position:absolute; left:14px; top:14px; right:14px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; animation:rise .25s ease-out}
+.room .aud .chip b{font-weight:500}
+.room .aud-bar{position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(255,255,255,.2)}
+.room .aud-bar i{display:block; height:100%; width:0; background:var(--tally)}
+.room .picture.auditioning .pp, .room .picture.auditioning .pic-ctx{display:none}
+.room .picture.auditioning{box-shadow:0 0 0 2px var(--tally), var(--lift)}
+@keyframes fan{from{opacity:0; transform:translateX(-18px)}to{opacity:1; transform:none}}
+.room .cmd{position:fixed; left:50%; bottom:calc(18px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); width:min(720px, calc(100% - 32px)); z-index:30; display:grid; gap:8px}
+.room .reply{justify-self:center; max-width:100%; background:var(--ink); color:#fff; font-size:13px; padding:8px 14px; border-radius:12px; box-shadow:var(--lift); display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; animation:rise .3s ease-out}
+.room .reply b{font-weight:500}
+.room .reply button{color:rgba(255,255,255,.7); text-decoration:underline; text-underline-offset:3px}
+.room .reply button:hover{color:#fff}
+.room .sugs{display:flex; flex-wrap:wrap; justify-content:center; gap:6px}
+.room .sugs button{background:var(--surface); border-radius:999px; padding:6px 12px; font-size:12.5px; color:var(--ink2); box-shadow:0 0 0 1px var(--hair), var(--lift-sm)}
+.room .sugs button:hover{color:var(--ink); box-shadow:0 0 0 1px var(--hair2), var(--lift-sm)}
+.room .cmdbar{display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.94); backdrop-filter:blur(14px); border-radius:16px; padding:8px 8px 8px 12px; box-shadow:0 0 0 1px var(--hair), 0 14px 40px rgba(20,20,18,.13)}
+.room .cmdbar input{flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:15px; color:var(--ink); padding:8px 0}
+.room .cmdbar input::placeholder{color:var(--ink3)}
+.room .cmdbar input:focus-visible{outline:none}
+.room .send{width:36px; height:36px; border-radius:11px; background:var(--ink); color:#fff; display:grid; place-items:center; flex:none}
+.room .scope{display:inline-flex; align-items:center; gap:6px; flex:none; max-width:min(260px,40vw); height:32px; padding:0 8px 0 11px; border-radius:10px; background:var(--sunk); color:var(--ink2); font-size:12.5px; transition:background .15s, color .15s}
+.room .scope:hover{background:var(--sunk2); color:var(--ink)}
+.room .scope.narrow{background:var(--ink); color:#fff}
+.room .scope .sl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.room .scope .caret{flex:none; opacity:.6}
+.room .scope .x{flex:none; width:18px; height:18px; border-radius:6px; display:grid; place-items:center; margin-left:2px; background:rgba(255,255,255,.16)}
+.room .scope .x:hover{background:rgba(255,255,255,.3)}
+.room .modebtn{display:inline-flex; align-items:center; gap:7px; flex:none; height:32px; padding:0 9px 0 10px; border-radius:10px; font-size:13px; font-weight:500; color:var(--ink); background:var(--surface); box-shadow:0 0 0 1px var(--hair2)}
+.room .modebtn:hover{box-shadow:0 0 0 1px var(--ink3)}
+.room .modebtn .caret{opacity:.55}
+.room .mdot{display:inline-block; width:8px; height:8px; border-radius:50%; flex:none}
+.room .modemenu .ck{visibility:visible !important; display:grid; place-items:center}
+.room .modemenu button[aria-checked="true"], .room .modemenu button.on{background:var(--ground)}
+.room .scopemenu b{display:flex; align-items:center; gap:8px}
+.room kbd{margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:400; color:var(--ink3); background:var(--ground); border-radius:5px; padding:1px 6px; box-shadow:inset 0 0 0 1px var(--hair)}
+.room #slashMenu .ck{font-family:var(--mono); color:var(--ink3)}
+.room .sugs .hint{align-self:center; font-size:11.5px; color:var(--ink3); padding:0 4px}
+.room .cmd[data-mode] #lpBar .pupil{fill:var(--mode)}
+.room .cmd .cmdbar:focus-within{box-shadow:0 0 0 1.5px var(--mode, var(--ink)), 0 14px 40px rgba(20,20,18,.13)}
+.room .mtag{font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; margin-right:2px; filter:brightness(1.6)}
+.room .snd{display:inline-flex; align-items:center; gap:6px; color:#3D7BE0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.room .gainmark{color:#3D7BE0}
+.room .picture.raining::before{content:""; position:absolute; inset:0; z-index:1; pointer-events:none; opacity:.22; background-image:repeating-linear-gradient(104deg, rgba(255,255,255,.0) 0 7px, rgba(255,255,255,.55) 7px 8px, rgba(255,255,255,0) 8px 23px); background-size:240px 240px; animation:rain .55s linear infinite}
+@keyframes rain{to{background-position:-60px 240px}}
+.room .picture .sub, .room .picture .pic-ctx, .room .picture .pp, .room .picture .aud, .room .picture .aud-bar, .room .picture .mosaic, .room .picture .proc{z-index:2}
+.room .scopemenu{justify-self:start; width:min(360px,100%); background:var(--surface); border-radius:16px; padding:6px; box-shadow:0 0 0 1px var(--hair), var(--lift); animation:rise .2s ease-out}
+.room .scopemenu .smk{font-size:11.5px; color:var(--ink3); padding:8px 10px 6px}
+.room .scopemenu button{display:grid; grid-template-columns:18px minmax(0,1fr); gap:2px 10px; width:100%; text-align:left; padding:9px 10px; border-radius:10px}
+.room .scopemenu button:hover, .room .scopemenu button:focus-visible{background:var(--ground); outline:none}
+.room .scopemenu .ck{grid-row:span 2; color:var(--ink); padding-top:1px; visibility:hidden}
+.room .scopemenu button[aria-checked="true"] .ck{visibility:visible}
+.room .scopemenu b{font-weight:500; font-size:13.5px}
+.room .scopemenu span:last-child{font-size:12px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.room .page.scoped .beat:not(.inscope){opacity:.3}
+.room .page.scoped .beat.inscope{opacity:1}
+.room .beat.inscope::before{content:""; position:absolute; left:-10px; top:14px; bottom:14px; width:2.5px; border-radius:2px; background:var(--tally)}
+.room .page.scoped .act{opacity:.3}
+.room .sheet{position:fixed; inset:0; z-index:50; background:rgba(246,246,243,.7); backdrop-filter:blur(6px); display:grid; place-items:center; padding:20px}
+.room .sheet-card{background:var(--surface); border-radius:20px; box-shadow:0 0 0 1px var(--hair), 0 30px 80px rgba(20,20,18,.18); width:100%; max-width:500px; padding:26px; max-height:100%; overflow:auto}
+.room .sheet-card h2{font-size:22px; font-weight:600; letter-spacing:-.03em; margin:0}
+.room .sheet-card .file{font-family:var(--mono); font-size:12.5px; color:var(--ink2); margin:4px 0 18px}
+.room .trk{display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:10px; padding:8px 0; border-top:1px solid var(--hair); font-size:13.5px}
+.room .trk span:first-child{font-family:var(--mono); font-size:12px; color:var(--ink3); padding-top:2px}
+.room .trk span:last-child{color:var(--ink3)}
+.room .sheet-card p{font-size:13px; color:var(--ink2); margin:16px 0 20px}
+.room .veil{position:fixed; inset:0; z-index:40; pointer-events:none; display:grid; place-items:center; background:rgba(246,246,243,.75)}
+.room .veil div{font-weight:600; font-size:clamp(28px,5vw,54px); letter-spacing:-.04em}
+@media (max-width:979px){
+.room .suite{grid-template-columns:minmax(0,1fr); gap:28px; padding-bottom:150px}
+}
+@media (max-width:860px){
+.room .ingest{grid-template-columns:minmax(0,1fr)}
+.room .side{order:-1}
+}
+@media (max-width:560px){
+.room .top{padding:14px 16px 8px}
+.room .note{display:none}
+.room .drop, .room .ingest{padding-left:16px; padding-right:16px}
+.room .suite{padding-left:16px; padding-right:16px}
+.room .surface{padding:24px}
+.room .beat{grid-template-columns:56px minmax(0,1fr); gap:10px}
+.room .slug, .room .slug-k, .room .act, .room .tray{margin-left:66px}
+.room .char{padding-left:16%}
+.room .line, .room .pz, .room .why, .room .marks{padding-left:4%}
+.room .page{font-size:14px}
+.room .pline{grid-template-columns:62px minmax(0,1fr) 84px}
+.room .ctx{display:none}
+}
+
+/* Loupe additions to the mockup's styles (things the real app needs that the mockup only simulated). */
+.room .notice{max-width:640px; background:var(--surface); border-radius:var(--r-md); padding:12px 16px; font-size:14px; color:var(--ink2); box-shadow:0 0 0 1px var(--hair); animation:rise .3s ease-out}
+.room .notice .textlink{margin-left:2px}
+.room .hello-row{display:flex; align-items:center; gap:14px; color:var(--ink2); font-size:16px; max-width:56ch}
+.room .proc-text{font-size:clamp(20px,2.6vw,32px); font-weight:500; letter-spacing:-.025em; line-height:1.1}
+.room .lead-row{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:-6px; margin-bottom:18px}
+.room .lead-row .segctl{display:inline-grid; grid-auto-flow:column; grid-template-columns:none; min-width:220px}
+.room .lpbtn{display:inline-flex; flex:none; border-radius:50%; line-height:0}
+.room .fs{border:0; padding:0; cursor:pointer}
+.room .picture video{z-index:0}
+.room .tk-use:disabled, .room .chip:disabled, .room .segctl button:disabled, .room .sugs button:disabled{opacity:.5; cursor:default}
+.room .send:disabled{opacity:.35; cursor:default}
+.room .slot{cursor:pointer; background:transparent; transition:border-color .2s, color .2s}
+.room .slot:hover{border-color:var(--ink3); color:var(--ink2)}
+.room .reply b{margin-right:2px}
+.room .top{flex:none}
+.room .tray-k{flex-wrap:wrap; row-gap:6px}
+.room .stage{grid-template-columns:minmax(0,1fr)}
+.room .legend{flex-wrap:wrap; row-gap:4px}
+.room .top{min-width:0}
+.room .cmd > *{min-width:0}
+.room .cmdbar input{width:0}
+@media (max-width:560px){ .room .modebtn span, .room .modebtn .caret{display:none} .room .scope{max-width:34vw} }
