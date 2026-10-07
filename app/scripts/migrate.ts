@@ -7,8 +7,9 @@
 //
 // Prints exactly what will run and waits for "yes". It only adds loupe_
 // tables and the loupe_app login; it never alters anything that exists.
-// It refuses a Supabase database that holds another app's tables, so Loupe
-// can never land in the Reelarc backend's or Reelarc Footage's database.
+// Loupe lives in the retired Backdrop Supabase project. If the database holds
+// other tables it lists them and wants "backdrop" typed first, and it refuses
+// Reelarc Footage's database outright, so Loupe can't land in the wrong one.
 // The first time, it gives loupe_app a random password and saves the
 // loupe_app connection into app/.env.local and worker/.env. The admin
 // connection is only used here and is never saved anywhere.
@@ -131,13 +132,23 @@ async function main() {
       : [];
     console.log(`The database has ${tables.length} tables; ${loupeTables.length} of them are Loupe tables.`);
 
-    // Loupe has its own Supabase project. A Supabase database holding other tables is someone
-    // else's (Reelarc's backend, or Reelarc Footage), and Loupe must never be set up there.
+    // Loupe lives in the retired Backdrop project, next to Backdrop's old tables (never touched).
+    // Reelarc's backend and Reelarc Footage must never get Loupe: Footage's tables stop it outright,
+    // and any database with other tables needs "backdrop" typed before anything is added.
     const others = tables.filter((t) => !t.name.startsWith("loupe_"));
-    if (tlsFor(adminUrl) && others.length > 0) {
-      throw new Error(
-        `Stopped: this database also holds ${others.length} other table(s) (${others.slice(0, 3).map((t) => t.name).join(", ")}…), so it isn't Loupe's own project. Nothing was changed.`,
-      );
+    if (tlsFor(adminUrl) && others.some((t) => t.name.startsWith("footage_"))) {
+      throw new Error("Stopped: this is Reelarc Footage's database, not Backdrop's. Nothing was changed.");
+    }
+    if (tlsFor(adminUrl) && others.length > 0 && applied.length === 0 && !flag("--check")) {
+      console.log(`\nIt also holds ${others.length} other table(s), which Loupe leaves exactly as they are:`);
+      console.log(`  ${others.slice(0, 12).map((t) => t.name).join(", ")}${others.length > 12 ? ", …" : ""}`);
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      const answer = (await rl.question("If this is the Backdrop project, type backdrop to go on: ")).trim().toLowerCase();
+      rl.close();
+      if (answer !== "backdrop") {
+        console.log("Stopped. Nothing was changed.");
+        return;
+      }
     }
 
     if (flag("--check")) {

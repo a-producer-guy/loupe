@@ -7,9 +7,9 @@ When it's done you have:
 - **loupe.reelarc.com**: the Loupe website and app (runs on Vercel)
 - **the proxy worker**: a small always-on server that makes the Premiere proxies and web previews (runs on Railway)
 - **a private Backblaze B2 bucket** called `loupe-footage`, where customers' footage lives
-- **Loupe's own Supabase project** for sign-in and the database. It's completely separate from the Reelarc backend and from Reelarc Footage, so nothing Loupe does can touch them.
+- **the retired Backdrop Supabase project**, reused for Loupe's sign-in and database. Backdrop's old tables stay as they are next to Loupe's. It's completely separate from the Reelarc backend and from Reelarc Footage, so nothing Loupe does can touch them.
 
-Costs: Supabase free, Backblaze about $7 per TB per month, Vercel already paid (Reelarc team), Railway a few dollars a month on top of Footage's worker.
+Costs: Supabase whatever Backdrop already costs, Backblaze about $7 per TB per month, Vercel already paid (Reelarc team), Railway a few dollars a month on top of Footage's worker.
 
 ---
 
@@ -17,11 +17,12 @@ Costs: Supabase free, Backblaze about $7 per TB per month, Vercel already paid (
 
 On github.com, make a new **private** repository called `loupe` (no README, no .gitignore, nothing ticked). Tell Claude when it's there and Claude pushes the code.
 
-## 2. Supabase: a new project (15 minutes)
+## 2. Supabase: the Backdrop project (15 minutes)
 
-1. On supabase.com, make a **new organization** on the **Free** plan (call it "Loupe"). Making the project inside Reelarc's paid organization would cost about $10 a month.
-2. In it, **New project**: name `loupe`, region **East US (North Virginia)**, and click **Generate a password**. Copy that password somewhere safe (a password manager). You'll need it once, in a minute.
-3. When the project is ready, click Run on this. It shows you exactly what it will add, waits for you to type `yes`, then makes Loupe's tables and saves the connection into the settings files:
+1. On supabase.com, open the **Backdrop** project. If it's paused, click **Restore**.
+2. **Project Settings → Database → Reset database password**, and save the new password in a password manager. You'll need it once, in a minute. (Nothing uses Backdrop any more, so changing it breaks nothing.)
+3. **Authentication → Hooks**: if any hook is switched on, tell Claude before going further; it could block Loupe's sign-ins.
+4. Click Run on this. It shows you exactly what it will add, waits for you to type `yes`, then makes Loupe's tables and saves the connection into the settings files:
 
    ```bash
    cd app && npm run db:migrate
@@ -31,8 +32,8 @@ On github.com, make a new **private** repository called `loupe` (no README, no .
    - **The connection string**: in Supabase, click **Connect** at the top of the page → **Session pooler** → copy the URI.
    - **The database password** from step 2.
 
-   It refuses to run on any database that already has other tables, so it can't land in the wrong project by mistake.
-4. In Supabase, **Project Settings → API Keys**: copy the **Publishable key**. Click Run on this and paste it when asked:
+   Because Backdrop still has its old tables, it lists them and asks you to type `backdrop` before it adds anything. It leaves those tables exactly as they are, and it refuses Reelarc Footage's database outright.
+5. In Supabase, **Project Settings → API Keys**: copy the **Publishable key**. Click Run on this and paste it when asked:
 
    ```bash
    node scripts/setup-supabase.mjs
@@ -40,7 +41,7 @@ On github.com, make a new **private** repository called `loupe` (no README, no .
 
 ## 3. Supabase: sign-in emails (10 minutes)
 
-Still in Loupe's Supabase project:
+Still in the Backdrop project (these replace Backdrop's old sign-in settings):
 
 1. **Authentication → URL Configuration**
    - Site URL: `https://loupe.reelarc.com`
@@ -101,5 +102,6 @@ From then on, pushing to `main` redeploys both.
 
 - **Sign-up is open.** Anyone with the link gets an account and one free scene (up to 25 GB). A second scene asks them to pick a plan; payment comes in Stage 3, so until then you upgrade an account by hand (ask Claude).
 - **Your first account:** sign in with guy@reelarc.com. It makes an account called "Reelarc" with you as owner.
-- **Free Supabase projects pause after a week with no visits.** Open the site now and then, or switch the organization to Pro ($25/month) when real customers arrive.
+- **If Backdrop is on Supabase's free plan, it pauses after a week with no visits.** Open the site now and then, or move it to Pro when real customers arrive.
+- **Backdrop's old tables** can be deleted later, once you're sure nothing in them is needed. Ask Claude; nothing deletes them on its own.
 - **Nothing is ever deleted from B2 in Stage 1.** The keys can't delete, and the bucket keeps every replaced version.

@@ -34,7 +34,7 @@ Next.js 16 (App Router, `src/proxy.ts`), React 19, Tailwind 4 (tokens in `global
 
 ## Accounts and data
 
-- Loupe has **its own Supabase project**. Tables are prefixed `loupe_`; the app and worker sign in as `loupe_app`, which can only touch those tables. Row-level security is on for every table.
+- Loupe lives in the retired **Backdrop** Supabase project, next to Backdrop's old tables (leave them alone). Tables are prefixed `loupe_`; the app and worker sign in as `loupe_app`, which can only touch those tables. Row-level security is on for every table.
 - Every customer is a `loupe_accounts` row. Members, scenes (`loupe_projects`) and LUTs carry `accountId`. Every route that takes an id goes through `ownedShoot` / `ownedFileByKey` / `ownedLut` in `lib/footage/access.ts`, which return 404 for anything another account owns. Keep it that way; the tests in `test/footage.test.ts` ("accounts") check it.
 - Roles: owner, editor, director, viewer. `canWrite` is owner or editor.
 - Show Guy every migration before running it (`npm run db:migrate` prints it and waits for "yes").
