@@ -21,7 +21,7 @@ export async function ownedShoot(db: Db, member: Owner, id: number | null) {
 /** The file with this storage key, if its scene is in the member's account. */
 export async function ownedFileByKey(db: Db, member: Owner, storageKey: string) {
   const [row] = await db
-    .select({ id: files.id, status: files.status, uploadId: files.uploadId, projectId: files.projectId })
+    .select({ id: files.id, status: files.status, uploadId: files.uploadId, projectId: files.projectId, path: files.path, storageKey: files.storageKey, sizeBytes: files.sizeBytes })
     .from(files)
     .innerJoin(projects, eq(projects.id, files.projectId))
     .where(and(eq(files.storageKey, storageKey), eq(projects.accountId, member.accountId)));

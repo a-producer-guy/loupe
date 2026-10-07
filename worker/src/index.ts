@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, readdir, rm, stat, statfs } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { FalClient } from "./ai/fal.js";
-import { runAssemblyLoop } from "./assembly/job.js";
+import { runAssemblyLoop, startCutIfReady } from "./assembly/job.js";
 import { loadConfig } from "./config.js";
 import { claimJob, connect, heartbeat, markDone, markFailed, markSkipped, releaseJobs, requeueStale, type Job } from "./jobs.js";
 import { buildThumbnailArgs, makeProxy, PermanentProxyError, runFfmpeg, unsupportedFormatReason } from "./proxy.js";
@@ -98,6 +98,12 @@ async function processJob(job: Job, signal: AbortSignal) {
     log(`${label}: failed${permanent || job.attempts >= job.max_attempts ? "" : ", will retry"}: ${message}`);
   } finally {
     clearInterval(beat);
+    // The last proxy of a scene: its cut starts by itself (once the cut tables are there; quietly before).
+    if (!signal.aborted) {
+      await startCutIfReady(sql, job.project_id)
+        .then((started) => started && log(`[scene ${job.project_id}] every proxy is made: the cut is queued.`))
+        .catch((e: { code?: string }) => e?.code !== "42P01" && log(`[scene ${job.project_id}] couldn't queue the cut: ${e}`));
+    }
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }

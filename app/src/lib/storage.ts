@@ -105,6 +105,23 @@ export async function readText(key: string, maxBytes: number): Promise<string | 
   }
 }
 
+/** Stores a small file the app itself received (a script added on its own), private like everything else. */
+export async function putObject(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+  await s3().send(new PutObjectCommand({ Bucket: env.b2.bucket, Key: key, Body: bytes, ContentType: contentType }));
+}
+
+/** A small file's bytes (a script in a scene's folder), or null if it's missing or bigger than `maxBytes`. */
+export async function readBytes(key: string, maxBytes: number): Promise<Uint8Array | null> {
+  try {
+    const response = await s3().send(new GetObjectCommand({ Bucket: env.b2.bucket, Key: key }));
+    if (!response.Body || (response.ContentLength ?? 0) > maxBytes) return null;
+    return await response.Body.transformToByteArray();
+  } catch (error) {
+    if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404) return null;
+    throw error;
+  }
+}
+
 /** Size of the object in B2, or null if nothing is stored at that key. */
 export async function storedSize(key: string): Promise<number | null> {
   try {

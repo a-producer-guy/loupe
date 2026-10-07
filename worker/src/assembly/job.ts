@@ -63,6 +63,25 @@ export async function claimAssembly(sql: Sql, workerId: string): Promise<Assembl
   return rows[0] ? toJob(rows[0]) : null;
 }
 
+/**
+ * The scene's first cut, the moment it can be made (Guy: nobody presses anything): every file in, every proxy
+ * finished one way or another, at least two takes ready, and no cut yet. Called after each proxy job ends; the app's
+ * scene page does the same (app/src/lib/footage/cuts.ts, startCutIfReady). True if it started one.
+ */
+export async function startCutIfReady(sql: Sql, projectId: number): Promise<boolean> {
+  const rows = await sql`
+    insert into loupe_cuts (project_id, requested_by)
+    select p.id, null from loupe_projects p
+     where p.id = ${projectId} and p.status = 'uploaded'
+       and not exists (select 1 from loupe_cuts c where c.project_id = p.id)
+       and not exists (select 1 from loupe_files f where f.project_id = p.id and f.status <> 'uploaded')
+       and not exists (select 1 from loupe_proxy_jobs j where j.project_id = p.id and j.status not in ('done', 'failed', 'skipped'))
+       and (select count(*) from loupe_proxy_jobs j where j.project_id = p.id and j.status = 'done' and j.preview_size_bytes is not null) >= 2
+    on conflict do nothing
+    returning id`;
+  return rows.length > 0;
+}
+
 /** Records the step and keeps the job ours. False: it was taken back. */
 export async function touchAssembly(sql: Sql, id: number, workerId: string, step?: Step): Promise<boolean> {
   const rows = step
