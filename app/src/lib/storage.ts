@@ -69,9 +69,9 @@ export function signUploadRequest(request: UploadRequest): Promise<string> {
  * `version` changes the link when the still itself changes (a proxy re-made
  * with a new LUT), so the browser doesn't keep showing the old one.
  */
-export function signView(key: string, version?: string): Promise<string> {
+export function signView(key: string, version?: string, extension = "jpg"): Promise<string> {
   const hour = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
-  const disposition = version ? { ResponseContentDisposition: `inline; filename="${version}.jpg"` } : {};
+  const disposition = version ? { ResponseContentDisposition: `inline; filename="${version}.${extension}"` } : {};
   return getSignedUrl(s3(), new GetObjectCommand({ Bucket: env.b2.bucket, Key: key, ...disposition }), {
     expiresIn: 2 * 60 * 60,
     signingDate: hour,

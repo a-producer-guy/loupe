@@ -219,6 +219,22 @@ export async function setExtra(db: Db, projectId: number, by: string, extra: "es
   return requestCut(db, projectId, by, { direction: { ...before, notes: (before.notes ?? []).filter((n) => n.reply !== null), extras: Object.keys(kept).length ? kept : undefined } });
 }
 
+/**
+ * "Use this take" for a line (from Other takes): straight into the direction, no reading needed, and a new version
+ * made with it. A take of the line's speaker, or of the other actor listening, from this scene.
+ */
+export async function pickTake(db: Db, projectId: number, by: string, line: number, take: string): Promise<CutView> {
+  const { done } = await sceneCuts(db, projectId);
+  const result = done?.result;
+  if (!result) throw new CutError("There's no cut yet.");
+  const text = result.lines[line]?.text;
+  if (!text) throw new CutError("That line isn't in the scene.");
+  if (!result.takes.some((t) => t.take === take && t.setup)) throw new CutError("That take can't be used here.");
+  const before = done.direction ?? {};
+  const picks = [...(before.picks ?? []).filter((p) => p.line !== text), { line: text, take }];
+  return requestCut(db, projectId, by, { direction: { ...before, notes: (before.notes ?? []).filter((n) => n.reply !== null), picks } });
+}
+
 /** The package's files as they sit in the scene's folder (for the Premiere download). */
 export function packageFiles(prefix: string, result: CutResult): { path: string; key: string; size: number }[] {
   return result.files.map((f) => ({ path: `${CUT_FOLDER}/${f.path}`, key: `${prefix}/${CUT_FOLDER}/${f.path}`, size: f.size }));
@@ -236,9 +252,9 @@ export type CutState = {
 };
 
 /** Everything the scene page needs about its cut (starting the first one, if it's due). */
-export async function cutState(db: Db, projectId: number, prefix: string, by: string | null, sign: (key: string, version?: string) => Promise<string>): Promise<CutState> {
+export async function cutState(db: Db, projectId: number, prefix: string, by: string | null, sign: (key: string, version?: string, extension?: string) => Promise<string>): Promise<CutState> {
   await startCutIfReady(db, projectId, by);
   const [{ latest, done, versions }, { ready }, script] = await Promise.all([sceneCuts(db, projectId), takesReady(db, projectId), sceneScript(db, projectId)]);
-  const preview = done?.result ? await sign(`${prefix}/${CUT_FOLDER}/${done.result.preview.path}`, `cut-${done.id}`) : null;
+  const preview = done?.result ? await sign(`${prefix}/${CUT_FOLDER}/${done.result.preview.path}`, `cut-${done.id}`, "mp4") : null;
   return { latest, done, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null };
 }
