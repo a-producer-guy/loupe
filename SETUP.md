@@ -4,12 +4,12 @@ Six steps, about an hour all together. Claude can do most of the typing. Only yo
 
 When it's done you have:
 
-- **loupe.reelarc.com**: the Loupe website and app (runs on Vercel)
+- **editloupe.com**: the Loupe website and app (runs on Vercel)
 - **the proxy worker**: a small always-on server that makes the Premiere proxies and web previews (runs on Railway)
 - **a private Backblaze B2 bucket** called `loupe-footage`, where customers' footage lives
 - **the retired Backdrop Supabase project**, reused for Loupe's sign-in and database. Backdrop's old tables stay as they are next to Loupe's. It's completely separate from the Reelarc backend and from Reelarc Footage, so nothing Loupe does can touch them.
 
-Costs: Supabase whatever Backdrop already costs, Backblaze about $7 per TB per month, Vercel already paid (Reelarc team), Railway a few dollars a month on top of Footage's worker.
+Costs: the editloupe.com domain about $11 a year, Supabase whatever Backdrop already costs, Backblaze about $7 per TB per month, Vercel already paid (Reelarc team), Railway a few dollars a month on top of Footage's worker.
 
 ---
 
@@ -44,8 +44,8 @@ On github.com, make a new **private** repository called `loupe` (no README, no .
 Still in the Backdrop project (these replace Backdrop's old sign-in settings):
 
 1. **Authentication → URL Configuration**
-   - Site URL: `https://loupe.reelarc.com`
-   - Redirect URLs: add `https://loupe.reelarc.com/**` and `http://localhost:3210/**`
+   - Site URL: `https://editloupe.com`
+   - Redirect URLs: add `https://editloupe.com/**` and `http://localhost:3210/**`
 2. **Authentication → Sign In / Providers**: keep **Allow new users to sign up** on (anyone with the link can start a free scene). Under **Email**, set **Email OTP Length** to **6**.
 3. **Authentication → Emails → SMTP Settings**: switch on **Enable Custom SMTP**, then **Save changes**.
    - Host `smtp.resend.com`, port `465`, username `resend` (exactly that)
@@ -74,7 +74,7 @@ Same Backblaze account as Footage, new bucket.
    node scripts/setup-b2.mjs
    ```
 
-   It makes the private `loupe-footage` bucket (keeps every earlier version of each file, lets loupe.reelarc.com and editloupe.com upload to it) and two restricted keys that can't delete anything. It saves them into the settings files. The master key isn't saved.
+   It makes the private `loupe-footage` bucket (keeps every earlier version of each file, lets editloupe.com upload to it) and two restricted keys that can't delete anything. It saves them into the settings files. The master key isn't saved.
 
 ## 5. Try it on this Mac
 
@@ -85,8 +85,8 @@ Ask Claude to start it, then open http://localhost:3210 in Chrome, sign in with 
 **App → Vercel** (team **Reelarc**, project `loupe`):
 
 1. New project from the `loupe` repository, root directory `app`, preset **Next.js**.
-2. Environment variables: everything in `app/.env.local`, plus `APP_URL=https://loupe.reelarc.com`. Paste them all at once into the first Key box.
-3. Domains: add `loupe.reelarc.com`. In reelarc.com's Google Cloud DNS, add the CNAME Vercel shows (`loupe` → `cname.vercel-dns.com`). If Vercel also asks for a TXT value on `_vercel`, **add it to the existing `_vercel` record** next to the values already there; don't replace them, they keep the other sites verified.
+2. Environment variables: everything in `app/.env.local`, plus `APP_URL=https://editloupe.com`. Paste them all at once into the first Key box.
+3. Domains: add `editloupe.com`, and `www.editloupe.com` set to redirect to it. The domain is bought through Vercel (Reelarc team), so Vercel sets up its addresses by itself; there's nothing to do in Google Cloud DNS.
 
 **Worker → Railway** (same Hobby account as Footage's worker):
 

@@ -1,6 +1,6 @@
 # CLAUDE.md — Loupe
 
-Loupe is an assistant editor for scripted scenes: a filmmaker drops a scene's footage, Loupe lines every take up with the script, hands back a first assembly with a reason for every shot, and the filmmaker directs changes in plain words. It started as Reelarc Footage's "Autoeditor" pilot and is now its own product, at loupe.reelarc.com until editloupe.com launches.
+Loupe is an assistant editor for scripted scenes: a filmmaker drops a scene's footage, Loupe lines every take up with the script, hands back a first assembly with a reason for every shot, and the filmmaker directs changes in plain words. It started as Reelarc Footage's "Autoeditor" pilot and is now its own product, at editloupe.com.
 
 ## Who you're working with
 

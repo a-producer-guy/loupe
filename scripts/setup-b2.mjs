@@ -22,7 +22,7 @@ import { ask, writeEnv } from "./prompt.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUCKET = process.env.B2_BUCKET || "loupe-footage";
 // The live site, and this Mac (the app runs on port 3210 locally; 3000 and 3001 are often taken).
-const ORIGINS = ["https://loupe.reelarc.com", "https://editloupe.com", "https://www.editloupe.com", "http://localhost:3210"];
+const ORIGINS = ["https://editloupe.com", "https://www.editloupe.com", "http://localhost:3210"];
 const KEY_CAPABILITIES = ["listBuckets", "listFiles", "readFiles", "writeFiles"]; // no deleteFiles
 
 const CORS_RULES = [
