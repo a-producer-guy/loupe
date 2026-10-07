@@ -66,11 +66,13 @@ async function main() {
   const bucketOnly = process.argv.includes("--bucket-only");
   console.log(`\nLoupe: Backblaze B2 setup${bucketOnly ? " (bucket settings only)" : ""}\n`);
   console.log("Use a Backblaze key that can make buckets and keys (the Master Application Key, or a\nkey for All buckets with Read and Write). It's used for this setup only and never saved.\n");
-  const keyId = await askFromClipboard("keyID");
-  console.log(`  ✓ keyID ${keyId.slice(0, 6)}…`);
-  const appKey = await askFromClipboard("applicationKey");
-  if (appKey === keyId) throw new Error("That's the keyID again. Copy the applicationKey; nothing was changed.");
-  console.log("  ✓ applicationKey copied");
+  // Either order works: applicationKeys start with "K", keyIDs don't.
+  const first = await askFromClipboard("keyID (starts with 005)");
+  console.log(first.startsWith("K") ? "  ✓ got the applicationKey" : `  ✓ got the keyID ${first.slice(0, 6)}…`);
+  const second = await askFromClipboard(first.startsWith("K") ? "keyID (starts with 005)" : "applicationKey (starts with K)");
+  if (second === first) throw new Error("That's the same value twice. Copy the other one; nothing was changed.");
+  const [keyId, appKey] = first.startsWith("K") ? [second, first] : [first, second];
+  console.log("  ✓ got both");
   if (!keyId || !appKey) throw new Error("Both the keyID and the applicationKey are needed.");
 
   const auth = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
