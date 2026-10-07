@@ -15,11 +15,13 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
     [
       "loupe_accounts",
       "loupe_card_luts",
+      "loupe_cuts",
       "loupe_files",
       "loupe_luts",
       "loupe_members",
       "loupe_projects",
       "loupe_proxy_jobs",
+      "loupe_scripts",
       "loupe_sign_in_attempts",
     ],
   );
@@ -42,6 +44,15 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
   );
   await pg.query(`insert into loupe_card_luts (project_id, card, lut_id) values (1001, 'B001', $1)`, [lut.rows[0].id]);
   await pg.query(`insert into loupe_sign_in_attempts (email, failures) values ('owner@example.com', 1)`);
+  const script = await pg.query<{ id: number }>(
+    `insert into loupe_scripts (account_id, project_id, title, roles, lines, file_name, storage_key, size_bytes)
+     values ($1, 1001, 'The Offer', '["MAYA","DANIEL"]', '[]', 'offer.fdx', 'Scripts/a1/x/offer.fdx', 10) returning id`,
+    [accountId],
+  );
+  await pg.query(`insert into loupe_cuts (project_id, script_id) values (1001, $1)`, [script.rows[0].id]);
+  // One cut waits or works per scene at a time.
+  await assert.rejects(pg.query(`insert into loupe_cuts (project_id) values (1001)`), /loupe_cuts_one_at_a_time_idx/);
+  await assert.rejects(pg.query(`update loupe_cuts set status = 'maybe'`), /loupe_cuts_status_valid/);
   // ...but nothing else in the database.
   await assert.rejects(pg.query(`select * from public.users`), /permission denied/);
   // Plans and roles only take the values Loupe knows.
@@ -52,7 +63,7 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
   // Supabase's public API roles get nothing.
   for (const role of ["anon", "authenticated"]) {
     await pg.exec(`set role ${role}`);
-    for (const table of ["loupe_accounts", "loupe_members", "loupe_projects", "loupe_luts", "loupe_card_luts", "loupe_sign_in_attempts"]) {
+    for (const table of ["loupe_accounts", "loupe_members", "loupe_projects", "loupe_luts", "loupe_card_luts", "loupe_sign_in_attempts", "loupe_scripts", "loupe_cuts"]) {
       await assert.rejects(pg.query(`select * from ${table}`), /permission denied/, `${role} on ${table}`);
     }
     await pg.exec(`reset role`);

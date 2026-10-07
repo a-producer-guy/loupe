@@ -260,3 +260,90 @@ export const proxyJobs = pgTable(
     appAccess(),
   ],
 ).enableRLS();
+
+// ─── Stage 2: scripts and cuts ────────────────────────────────────────────────
+// Loupe cuts a scene's first assembly from its takes (worker/src/assembly, the Autoeditor brought over
+// from Reelarc Footage): best take for every line with a reason, clean dialogue, a Premiere timeline,
+// and a preview to watch. Notes in plain words make it again.
+
+/** A line of a script: a stage direction, or a speech. */
+export type ScriptLine = { kind: "action"; text: string } | { kind: "speech"; who: string; text: string };
+
+/**
+ * A scene's script (Final Draft or its PDF), read once into lines. Each account has its own: a script
+ * is only ever matched against that account's scenes. One dropped with a scene's folder is tied to it.
+ */
+export const scripts = pgTable(
+  "loupe_scripts",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    accountId: bigint("account_id", { mode: "number" })
+      .notNull()
+      .references(() => accounts.id),
+    // The scene it came in with, when it was in the dropped folder.
+    projectId: bigint("project_id", { mode: "number" }).references(() => projects.id),
+    title: text("title").notNull(),
+    // The speaking parts, most lines first: ["ELLIS", "GRAHAM"].
+    roles: jsonb("roles").$type<string[]>().notNull(),
+    lines: jsonb("lines").$type<ScriptLine[]>().notNull(),
+    // The scene heading, like "INT. CORNER OFFICE - DAY".
+    heading: text("heading"),
+    // The file as added, kept in B2.
+    fileName: text("file_name").notNull(),
+    storageKey: text("storage_key").notNull().unique(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    addedBy: text("added_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("loupe_scripts_account_idx").on(t.accountId), index("loupe_scripts_project_idx").on(t.projectId), appAccess()],
+).enableRLS();
+
+export const CUT_STATUSES = ["waiting", "working", "done", "failed"] as const;
+export type CutStatus = (typeof CUT_STATUSES)[number];
+
+/** What one take frames: who's on camera, and how close. */
+export type TakeSetup = { who: string; framing: "medium" | "close" };
+
+/**
+ * One version of a scene's cut. The newest row is the scene's cut; a note or "make again" adds a new
+ * row (carrying the direction forward), so only one waits or works per scene at a time. The worker
+ * fills in `result` (shots and their reasons, and every line in every take for "other takes"); the
+ * files go to B2 in the scene's "Loupe Cut" folder.
+ */
+export const cuts = pgTable(
+  "loupe_cuts",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => projects.id),
+    // Corrections for this run. Null: worked out from the takes (the matching script, or the lines said
+    // in the takes; the lead from the first take; who's framed how from the picture).
+    scriptId: bigint("script_id", { mode: "number" }).references(() => scripts.id),
+    leadRole: text("lead_role"),
+    coverage: jsonb("coverage").$type<Record<string, TakeSetup | null>>(),
+    // The director's notes to Loupe and what they set (the look, a take for a line, tighter cuts,
+    // extras like an establishing shot or a score). Carried from one version to the next.
+    direction: jsonb("direction").$type<Record<string, unknown>>(),
+    status: text("status", { enum: CUT_STATUSES }).notNull().default("waiting"),
+    // The step it's on while working, for the scene page.
+    step: text("step"),
+    attempts: integer("attempts").notNull().default(0),
+    lockedBy: text("locked_by"),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    // Why it failed, in plain words.
+    error: text("error"),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    requestedBy: text("requested_by"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("loupe_cuts_status_valid", sql`${t.status} in ('waiting', 'working', 'done', 'failed')`),
+    index("loupe_cuts_project_idx").on(t.projectId, t.id),
+    index("loupe_cuts_queue_idx").on(t.status, t.id),
+    uniqueIndex("loupe_cuts_one_at_a_time_idx").on(t.projectId).where(sql`${t.status} in ('waiting', 'working')`),
+    appAccess(),
+  ],
+).enableRLS();
