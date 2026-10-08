@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 import Link from "next/link";
 import { DirectDemo } from "@/components/landing/direct-demo";
 import { GruntWork } from "@/components/landing/grunt-work";
+import { HeroProof } from "@/components/landing/hero-proof";
 import { Savings } from "@/components/landing/savings";
 import { SceneDemo } from "@/components/landing/scene-demo";
 import { Loupe } from "@/components/loupe/loupe";
@@ -144,21 +145,7 @@ export default function Landing() {
               </figcaption>
             </figure>
           </div>
-          <dl className="grid gap-3">
-            {[
-              { was: "3 hours", now: "5–10 min", what: "for a first cut of a 2–3 minute scene. It works while you get a coffee." },
-              { was: "$195", now: "$39", what: "a scene. Three hours of a mid-level editor at $65 an hour, against Loupe. Studios pay $25." },
-              { was: "14 takes", now: "1 click", what: "to hear every take of a line, back to back. No scrubbing." },
-            ].map((b) => (
-              <div key={b.now} className="rounded-[18px] bg-surface px-5 py-4 shadow-lift-sm ring-1 ring-line">
-                <dt className="flex items-baseline gap-2.5">
-                  <s className="text-[15px] text-faint decoration-tally decoration-2">{b.was}</s>
-                  <span className="text-[clamp(30px,3.2vw,40px)] font-light leading-none tracking-[-0.05em] tabular-nums">{b.now}</span>
-                </dt>
-                <dd className="mt-1.5 text-[13.5px] text-muted">{b.what}</dd>
-              </div>
-            ))}
-          </dl>
+          <HeroProof />
         </section>
 
         <section id="how" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">

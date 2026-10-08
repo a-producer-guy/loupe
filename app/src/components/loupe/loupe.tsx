@@ -55,17 +55,28 @@ export function Loupe({
     live.current?.set(mood, dept);
   }, [mood, dept]);
 
-  // The 3D Loupe loads only where asked for, after the page has drawn.
+  // The 3D Loupe loads only where asked for, after the page has drawn, once he's nearly on screen (building him
+  // takes a moment, so Loupes further down a page wait their turn).
   useEffect(() => {
-    if (!three || !host.current) return;
+    const el = host.current;
+    if (!three || !el) return;
     let gone = false;
-    void import("./loupe-3d").then(({ mountLoupe3D }) => {
-      if (gone || !host.current) return;
-      live.current = mountLoupe3D(host.current, size, () => setThreeOn(true), () => setThreeOn(false));
-      live.current?.set(latest.current.mood, latest.current.dept);
-    });
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting) return;
+        io.disconnect();
+        void import("./loupe-3d").then(({ mountLoupe3D }) => {
+          if (gone || !host.current) return;
+          live.current = mountLoupe3D(host.current, size, () => setThreeOn(true), () => setThreeOn(false));
+          live.current?.set(latest.current.mood, latest.current.dept);
+        });
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(el);
     return () => {
       gone = true;
+      io.disconnect();
       live.current?.dispose();
       live.current = null;
     };

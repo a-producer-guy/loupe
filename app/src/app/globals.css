@@ -102,6 +102,23 @@
   from { transform: scale(1); }
   to { transform: scale(1.05); }
 }
+@keyframes hop {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(-46px); }
+  100% { transform: translateY(0); }
+}
+@keyframes stomp {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(1.15, 0.78); }
+  60% { transform: scale(0.95, 1.06); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes squish {
+  0% { transform: scale(1, 1); }
+  35% { transform: scale(1.25, 0.35); }
+  70% { transform: scale(0.95, 1.1); }
+  100% { transform: scale(1, 1); }
+}
 @keyframes rainfall {
   to { background-position: -60px 240px; }
 }
