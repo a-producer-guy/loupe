@@ -343,7 +343,9 @@ export const cuts = pgTable(
     check("loupe_cuts_status_valid", sql`${t.status} in ('waiting', 'working', 'done', 'failed')`),
     index("loupe_cuts_project_idx").on(t.projectId, t.id),
     index("loupe_cuts_queue_idx").on(t.status, t.id),
-    uniqueIndex("loupe_cuts_one_at_a_time_idx").on(t.projectId).where(sql`${t.status} in ('waiting', 'working')`),
+    // One version being made per scene, and one waiting behind it (Guy, Oct 7: requests queue, nothing is turned away).
+    uniqueIndex("loupe_cuts_one_working_idx").on(t.projectId).where(sql`${t.status} = 'working'`),
+    uniqueIndex("loupe_cuts_one_waiting_idx").on(t.projectId).where(sql`${t.status} = 'waiting'`),
     appAccess(),
   ],
 ).enableRLS();

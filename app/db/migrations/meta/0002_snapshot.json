@@ -1,5 +1,5 @@
 {
-  "id": "191ce370-794a-4746-b5e4-c380f56b92e0",
+  "id": "877f0be9-b87f-4d3b-887f-b2b1e2561dfc",
   "prevId": "5a54ee7d-129a-43a1-9fe7-f7b821850975",
   "version": "7",
   "dialect": "postgresql",
@@ -318,8 +318,8 @@
           "method": "btree",
           "with": {}
         },
-        "loupe_cuts_one_at_a_time_idx": {
-          "name": "loupe_cuts_one_at_a_time_idx",
+        "loupe_cuts_one_working_idx": {
+          "name": "loupe_cuts_one_working_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -329,7 +329,23 @@
             }
           ],
           "isUnique": true,
-          "where": "\"loupe_cuts\".\"status\" in ('waiting', 'working')",
+          "where": "\"loupe_cuts\".\"status\" = 'working'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "loupe_cuts_one_waiting_idx": {
+          "name": "loupe_cuts_one_waiting_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"loupe_cuts\".\"status\" = 'waiting'",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -346,3 +346,8 @@
 .room .share-row input{flex:1; min-width:0; font:inherit; font-size:13px; font-family:var(--mono); border:0; background:var(--ground); border-radius:10px; padding:9px 11px; color:var(--ink2)}
 .room .viewer-notes{display:grid; gap:6px; margin-top:6px}
 .room .viewer-notes h3{display:flex; justify-content:space-between; align-items:baseline; font-size:12px; font-weight:500; color:var(--ink3); margin:6px 4px 0}
+.room .status{display:flex; align-items:flex-start; gap:10px; justify-self:center; width:100%; background:var(--ink); color:#fff; border-radius:14px; padding:10px 14px; box-shadow:var(--lift); font-size:13px; animation:rise .3s ease-out}
+.room .status b{font-weight:500}
+.room .status small{display:block; color:rgba(255,255,255,.62); font-size:12px; margin-top:2px}
+.room .status small.queued{color:rgba(255,255,255,.85)}
+.room .status .loupe{flex:none; margin-top:1px}

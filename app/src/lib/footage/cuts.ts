@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
-import { cuts, files, projects, proxyJobs, type TakeSetup } from "@/lib/db/schema";
+import { cuts, files, projects, proxyJobs } from "@/lib/db/schema";
 import { sceneScript } from "@/lib/footage/scripts";
 
 // A scene's cut (Loupe stage 2). It starts by itself once the scene's footage is in and its proxies are made (the
@@ -27,11 +27,20 @@ const view = (row: typeof cuts.$inferSelect): CutView => ({
   result: (row.result as CutResult | null) ?? null,
 });
 
-/** The scene's newest version, and the newest finished one (they differ while a note is being made). */
-export async function sceneCuts(db: Db, projectId: number): Promise<{ latest: CutView | null; done: CutView | null; versions: number }> {
+/**
+ * The scene's versions: the newest, the newest finished one, the one being made, and the one waiting behind it
+ * (a queued request, Guy Oct 7: nothing is turned away while Loupe is busy).
+ */
+export async function sceneCuts(
+  db: Db,
+  projectId: number,
+): Promise<{ latest: CutView | null; done: CutView | null; working: CutView | null; waiting: CutView | null; versions: number }> {
   const rows = await db.select().from(cuts).where(eq(cuts.projectId, projectId)).orderBy(desc(cuts.id)).limit(20);
-  const done = rows.find((r) => r.status === "done");
-  return { latest: rows[0] ? view(rows[0]) : null, done: done ? view(done) : null, versions: rows.filter((r) => r.status === "done").length };
+  const find = (status: string) => {
+    const row = rows.find((r) => r.status === status);
+    return row ? view(row) : null;
+  };
+  return { latest: rows[0] ? view(rows[0]) : null, done: find("done"), working: find("working"), waiting: find("waiting"), versions: rows.filter((r) => r.status === "done").length };
 }
 
 /** Takes ready to cut (proxy and web preview made), and whether every video's proxy has finished one way or another. */
@@ -70,78 +79,125 @@ export async function startCutIfReady(db: Db, projectId: number, by: string | nu
   return inserted.length > 0;
 }
 
-/** Another version, with corrections (whose scene it is, the script, who each take is on). One at a time per scene. */
-export async function requestCut(
+const answered = (d: Direction | null | undefined) => (d ? { ...d, notes: (d.notes ?? []).filter((n) => n.reply !== null) } : null);
+const isUnique = (error: unknown) => String((error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code) === "23505";
+
+/**
+ * A request for Loupe. Loupe free: a new version, carrying the last finished one's direction with the change.
+ * Loupe busy: it queues. A request is put in plain words ("Use take T005 for the line …", "Add a score") on the version
+ * waiting behind the one being made, and the worker reads them against whatever that one turns out to be
+ * (worker/src/assembly/job.ts, queued). Several requests while it's busy join up, in order. Never turned away.
+ */
+async function ask(
   db: Db,
   projectId: number,
   by: string,
-  corrections: { scriptId?: number | null; leadRole?: string | null; coverage?: Record<string, TakeSetup | null> | null; direction?: Direction | null } = {},
+  change: { words: string | null; direction?: (d: Direction) => Direction; leadRole?: string | null; scriptId?: number | null },
 ): Promise<CutView> {
   if ((await takesReady(db, projectId)).ready < 2) throw new CutError("Loupe needs at least two takes with proxies to cut a scene. They're still being made.");
-  const running = await db.select({ id: cuts.id }).from(cuts).where(and(eq(cuts.projectId, projectId), inArray(cuts.status, ["waiting", "working"])));
-  if (running.length) throw new CutError("Loupe is already working on this scene.", 409);
-  const { done } = await sceneCuts(db, projectId);
-  // Carried from the last finished version unless given: the notes so far still stand (the look, the picks...).
-  const direction = corrections.direction !== undefined ? corrections.direction : done?.direction ? { ...done.direction, notes: (done.direction.notes ?? []).filter((n) => n.reply !== null) } : null;
-  try {
-    const [row] = await db
-      .insert(cuts)
-      .values({
-        projectId,
-        scriptId: corrections.scriptId !== undefined ? corrections.scriptId : (done?.scriptId ?? null),
-        leadRole: corrections.leadRole !== undefined ? corrections.leadRole : (done?.leadRole ?? null),
-        coverage: corrections.coverage !== undefined ? corrections.coverage : (done?.coverage ?? null),
-        direction,
-        requestedBy: by,
-      })
-      .returning();
-    return view(row);
-  } catch (error) {
-    // Two at once: the second finds the first one's row.
-    if (String((error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code) === "23505") throw new CutError("Loupe is already working on this scene.", 409);
-    throw error;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { done, working, waiting } = await sceneCuts(db, projectId);
+    const at = new Date().toISOString();
+    if (waiting) {
+      // Join the request already waiting: in words, after what it already asks.
+      const d: Direction = waiting.direction ?? {};
+      const notes = [...(d.notes ?? [])];
+      const last = notes.at(-1);
+      if (change.words) {
+        if (last && last.reply === null) notes[notes.length - 1] = { ...last, note: `${last.note} Then: ${change.words}`.slice(0, 1500), at };
+        else notes.push({ note: change.words, reply: null, at });
+      }
+      const next = change.direction && !waiting.direction?.queued ? change.direction({ ...d, notes }) : { ...d, notes };
+      const [row] = await db
+        .update(cuts)
+        .set({
+          direction: next,
+          ...(change.leadRole !== undefined ? { leadRole: change.leadRole } : {}),
+          ...(change.scriptId !== undefined ? { scriptId: change.scriptId } : {}),
+          requestedBy: by,
+        })
+        .where(and(eq(cuts.id, waiting.id), eq(cuts.status, "waiting")))
+        .returning();
+      if (row) return view(row);
+      continue; // it started in the meantime: queue behind it instead
+    }
+    const base: Direction = answered(done?.direction) ?? {};
+    // Busy: queued in words, read later against the version being made now. Free: applied to the last finished one.
+    const direction: Direction = working
+      ? { queued: true, notes: change.words ? [{ note: change.words, reply: null, at }] : [] }
+      : change.direction
+        ? change.direction(base)
+        : change.words
+          ? { ...base, notes: [...(base.notes ?? []), { note: change.words, reply: null, at }] }
+          : base;
+    try {
+      const [row] = await db
+        .insert(cuts)
+        .values({
+          projectId,
+          scriptId: change.scriptId !== undefined ? change.scriptId : working ? null : (done?.scriptId ?? null),
+          leadRole: change.leadRole !== undefined ? change.leadRole : working ? null : (done?.leadRole ?? null),
+          coverage: working ? null : (done?.coverage ?? null),
+          direction,
+          requestedBy: by,
+        })
+        .returning();
+      return view(row);
+    } catch (error) {
+      if (!isUnique(error)) throw error;
+      // Someone else's request got in first: join it.
+    }
   }
+  throw new CutError("Loupe is busy with this scene. Try that again in a moment.", 409);
+}
+
+/** Another version with corrections (whose scene it is, the script), or the same again. */
+export async function requestCut(db: Db, projectId: number, by: string, corrections: { scriptId?: number | null; leadRole?: string | null } = {}): Promise<CutView> {
+  return ask(db, projectId, by, { words: null, ...corrections });
 }
 
 export const MAX_NOTE = 500;
 
-/** A note to Loupe on the finished cut ("warmer", "she's too composed here"): a new version with it waiting to be read. */
+/** A note to Loupe ("warmer", "she's too composed here"), with what it's about when narrowed ("this line: …"). */
 export async function addNote(db: Db, projectId: number, by: string, note: string, scope?: string | null): Promise<CutView> {
   const said = note.replace(/\s+/g, " ").trim().slice(0, MAX_NOTE);
   if (!said) throw new CutError("Tell Loupe what to change.");
-  const { done } = await sceneCuts(db, projectId);
-  if (!done?.result) throw new CutError("There's no cut to change yet. Once the first one's ready, tell Loupe what to change.");
-  const before = done.direction ?? {};
-  // What the note is about, when it's narrowed to a line or an actor ("this line: …"), goes in front, in plain words.
-  const full = scope ? `${scope}: ${said}` : said;
-  const notes = [...(before.notes ?? []).filter((n) => n.reply !== null), { note: full.slice(0, 600), reply: null, at: new Date().toISOString() }].slice(-30);
-  return requestCut(db, projectId, by, { direction: { ...before, notes } });
+  const { done, working } = await sceneCuts(db, projectId);
+  if (!done?.result && !working) throw new CutError("There's no cut to change yet. Once the first one's ready, tell Loupe what to change.");
+  return ask(db, projectId, by, { words: (scope ? `${scope}: ${said}` : said).slice(0, 600) });
 }
 
-/** One click on an extra (Guy, Oct 7: off by default, one click to add): a new version with it on or off. */
+const EXTRA_WORDS = {
+  establishing: ["Open on an establishing shot of the outside.", "No establishing shot."],
+  ambience: ["Add the room's ambience.", "No ambience."],
+  score: ["Add a score.", "No score."],
+} as const;
+
+/** One click on an extra (Guy, Oct 7: off by default, one click to add). */
 export async function setExtra(db: Db, projectId: number, by: string, extra: "establishing" | "ambience" | "score", on: boolean): Promise<CutView> {
-  const { done } = await sceneCuts(db, projectId);
-  if (!done?.result) throw new CutError("There's no cut yet. Extras can be added once it's ready.");
-  const before = done.direction ?? {};
-  const extras = { ...(before.extras ?? {}), [extra]: on };
-  const kept = Object.fromEntries(Object.entries(extras).filter(([, v]) => v));
-  return requestCut(db, projectId, by, { direction: { ...before, notes: (before.notes ?? []).filter((n) => n.reply !== null), extras: Object.keys(kept).length ? kept : undefined } });
+  const { done, working } = await sceneCuts(db, projectId);
+  if (!done?.result && !working) throw new CutError("There's no cut yet. Extras can be added once it's ready.");
+  return ask(db, projectId, by, {
+    words: working ? EXTRA_WORDS[extra][on ? 0 : 1] : null,
+    direction: (d) => {
+      const kept = Object.fromEntries(Object.entries({ ...(d.extras ?? {}), [extra]: on }).filter(([, v]) => v));
+      return { ...d, extras: Object.keys(kept).length ? kept : undefined };
+    },
+  });
 }
 
-/**
- * "Use this take" for a line (from Other takes): straight into the direction, no reading needed, and a new version
- * made with it. A take of the line's speaker, or of the other actor listening, from this scene.
- */
+/** "Use this take" for a line (from Other takes): straight into the direction when Loupe is free, in words when it's busy. */
 export async function pickTake(db: Db, projectId: number, by: string, line: number, take: string): Promise<CutView> {
-  const { done } = await sceneCuts(db, projectId);
+  const { done, working } = await sceneCuts(db, projectId);
   const result = done?.result;
   if (!result) throw new CutError("There's no cut yet.");
   const text = result.lines[line]?.text;
   if (!text) throw new CutError("That line isn't in the scene.");
   if (!result.takes.some((t) => t.take === take && t.setup)) throw new CutError("That take can't be used here.");
-  const before = done.direction ?? {};
-  const picks = [...(before.picks ?? []).filter((p) => p.line !== text), { line: text, take }];
-  return requestCut(db, projectId, by, { direction: { ...before, notes: (before.notes ?? []).filter((n) => n.reply !== null), picks } });
+  return ask(db, projectId, by, {
+    words: working ? `Use take ${take} for the line "${text}".` : null,
+    direction: (d) => ({ ...d, picks: [...(d.picks ?? []).filter((p) => p.line !== text), { line: text, take }] }),
+  });
 }
 
 /** The package's files as they sit in the scene's folder (for the Premiere download). */
@@ -154,7 +210,7 @@ export function packageFiles(prefix: string, result: CutResult): { path: string;
 /** Everything the scene page needs about its cut (starting the first one, if it's due). */
 export async function cutState(db: Db, projectId: number, prefix: string, by: string | null, sign: (key: string, version?: string, extension?: string) => Promise<string>): Promise<CutState> {
   await startCutIfReady(db, projectId, by);
-  const [{ latest, done, versions }, { ready }, script] = await Promise.all([sceneCuts(db, projectId), takesReady(db, projectId), sceneScript(db, projectId)]);
+  const [{ latest, done, working, waiting, versions }, { ready }, script] = await Promise.all([sceneCuts(db, projectId), takesReady(db, projectId), sceneScript(db, projectId)]);
   const preview = done?.result ? await sign(`${prefix}/${CUT_FOLDER}/${done.result.preview.path}`, `cut-${done.id}`, "mp4") : null;
-  return { latest, done, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null };
+  return { latest, done, working, waiting, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null };
 }

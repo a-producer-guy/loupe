@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CutView } from "@/lib/footage/cut-types";
 import { Loupe, type LoupeDept } from "@/components/loupe/loupe";
 import type { RoomCut } from "@/lib/footage/cut-types";
 import { scopeLabel, type Scope } from "./suite";
@@ -128,20 +129,12 @@ export function CommandBar({
     return () => window.removeEventListener("keydown", key);
   }, [onDept]);
 
-  // What Loupe last said: the newest note's answer, or that it's on it.
+  // What Loupe is doing (always shown while it works, Guy Oct 7), and what it last said once it's done.
   const latest = cut.latest;
-  const notes = latest?.direction?.notes ?? [];
-  const last = notes.at(-1);
-  const working = latest && (latest.status === "waiting" || latest.status === "working");
-  const stepLabel = cut.steps.find((s) => s.key === latest?.step)?.label;
-  const replyKey = last ? `${latest?.id}-${last.at}-${last.reply ?? ""}` : null;
-  const reply = working
-    ? last && !last.reply
-      ? { text: "Reading your note…", key: `${latest?.id}-reading` }
-      : { text: `${stepLabel ?? "On it"}… The cut you see stays until the new one's ready.`, key: `${latest?.id}-${latest?.step}` }
-    : last?.reply && replyKey !== seen
-      ? { text: last.reply, key: replyKey! }
-      : null;
+  const working = Boolean(cut.working || cut.waiting);
+  const last = cut.done?.direction?.notes?.at(-1);
+  const replyKey = last ? `${cut.done?.id}-${last.at}-${last.reply ?? ""}` : null;
+  const reply = !working && latest?.status === "done" && last?.reply && replyKey !== seen ? { text: last.reply, key: replyKey! } : null;
 
   // A slash picks a mode: "/sound", "/color"...
   const slash = text.startsWith("/") ? ORDER.filter((d) => d.startsWith(text.slice(1).toLowerCase()) || MODES[d].name.toLowerCase().startsWith(text.slice(1).toLowerCase())) : [];
@@ -181,6 +174,7 @@ export function CommandBar({
           </div>
         </div>
       )}
+      {working && !menu && !about && <Status cut={cut} />}
       {reply && !about && !menu && !(focused && !text) && (
         <div className="reply" role="status">
           <b>Loupe</b>
@@ -326,6 +320,73 @@ export function CommandBar({
           </svg>
         </button>
       </form>
+    </div>
+  );
+}
+
+/** A note's words as the bar shows them: what was asked, without the scope's preamble, short. */
+const asked = (v: CutView | null) => {
+  const note = v?.direction?.notes?.filter((n) => n.reply === null).at(-1)?.note ?? null;
+  if (!note) return null;
+  const words = note.replace(/^[^:]{0,160}(lines?|cut|sound|colour|nothing)[^:]*: /i, "").replace(/ Then: /g, " · ");
+  return words.length > 70 ? `${words.slice(0, 68)}…` : words;
+};
+
+/**
+ * While Loupe works: what it's on (in your words), the step, how long it's been at it, and what's queued behind it.
+ * Always there until it's done, so nobody wonders whether anything is happening (Guy, Oct 7). The tab's title says
+ * so too, for when the page is in the background.
+ */
+function Status({ cut }: { cut: RoomCut }) {
+  const [now, setNow] = useState(() => Date.now());
+  // Ticks the clock, and keeps the tab's title saying so (the page's own title can come back over it).
+  useEffect(() => {
+    const mark = "● Loupe is working · ";
+    const tick = () => {
+      setNow(Date.now());
+      if (!document.title.startsWith(mark)) document.title = mark + document.title;
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearInterval(id);
+      document.title = document.title.replace(mark, "");
+    };
+  }, []);
+  const doing = cut.working;
+  const next = cut.waiting;
+  const step = cut.steps.findIndex((s) => s.key === doing?.step);
+  const since = doing?.startedAt ? Math.max(0, Math.round((now - Date.parse(doing.startedAt)) / 1000)) : null;
+  const what = asked(doing) ?? (doing ? "A new version" : null);
+  const queued = asked(next) ?? (next ? "Another version" : null);
+
+  return (
+    <div className="status" role="status" aria-live="polite">
+      <Loupe size={22} mood="think" ticklish={false} />
+      <div>
+        {doing ? (
+          <>
+            <b>Working on: </b>
+            <span>“{what}”</span>
+            <small>
+              {step >= 0 ? `${cut.steps[step].label}` : "Starting"}
+              {since !== null && ` · ${Math.floor(since / 60)}:${String(since % 60).padStart(2, "0")}`}
+              {" · the cut you see stays until it's ready"}
+            </small>
+          </>
+        ) : (
+          <>
+            <b>Up next: </b>
+            <span>“{queued}”</span>
+            <small>Starting in a moment</small>
+          </>
+        )}
+        {doing && next && (
+          <small className="queued">
+            Then: “{queued}”
+          </small>
+        )}
+      </div>
     </div>
   );
 }

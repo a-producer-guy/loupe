@@ -82,6 +82,8 @@ export type Direction = {
   pace?: "tighter" | "looser" | null;
   clean?: "isolate" | "standard" | null;
   extras?: { establishing?: boolean; ambience?: boolean; score?: boolean };
+  /** A request made while Loupe was busy: its notes are read against the version made before it. */
+  queued?: boolean;
 };
 
 export type CutView = {
@@ -102,6 +104,9 @@ export type CutView = {
 export type CutState = {
   latest: CutView | null;
   done: CutView | null;
+  /** The version being made, and the one waiting behind it (a queued request). */
+  working: CutView | null;
+  waiting: CutView | null;
   versions: number;
   /** A link to the finished version's preview, for the player. */
   preview: string | null;

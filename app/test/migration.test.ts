@@ -59,8 +59,11 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
   await pg.query(`insert into loupe_finals (cut_id, project_id, kind) select id, 1001, 'original' from loupe_cuts limit 1`);
   await assert.rejects(pg.query(`insert into loupe_finals (cut_id, project_id, kind) select id, 1001, 'original' from loupe_cuts limit 1`), /loupe_finals_one_at_a_time_idx/);
   await assert.rejects(pg.query(`update loupe_finals set kind = 'vhs'`), /loupe_finals_kind_valid/);
-  // One cut waits or works per scene at a time.
-  await assert.rejects(pg.query(`insert into loupe_cuts (project_id) values (1001)`), /loupe_cuts_one_at_a_time_idx/);
+  // One version waits per scene (and one is made), so requests queue.
+  await assert.rejects(pg.query(`insert into loupe_cuts (project_id) values (1001)`), /loupe_cuts_one_waiting_idx/);
+  await pg.query(`update loupe_cuts set status = 'working' where project_id = 1001`);
+  await pg.query(`insert into loupe_cuts (project_id) values (1001)`);
+  await assert.rejects(pg.query(`update loupe_cuts set status = 'working' where project_id = 1001 and status = 'waiting'`), /loupe_cuts_one_working_idx/);
   await assert.rejects(pg.query(`update loupe_cuts set status = 'maybe'`), /loupe_cuts_status_valid/);
   // ...but nothing else in the database.
   await assert.rejects(pg.query(`select * from public.users`), /permission denied/);

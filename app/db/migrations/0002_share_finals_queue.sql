@@ -1,9 +1,12 @@
--- Loupe: sharing and finals. Adds three tables; changes nothing that exists.
+-- Loupe: sharing, finals and a queue for Loupe's work. Adds three tables and changes one rule on loupe_cuts;
+-- no data is changed or removed.
 --
 -- loupe_share_links: a scene's secret watch link (one working link per scene; turned off, it stops for good).
 -- loupe_share_notes: notes viewers leave on a link, pinned to moments; they go to the scene's people, not to Loupe.
 -- loupe_finals: full-resolution final files of a cut (from the camera originals, or made 4K with Topaz).
--- Row-level security is on for all three; only loupe_app can use them, and Supabase's public API can't.
+-- loupe_cuts: "one version at a time per scene" becomes "one being made, and one waiting behind it", so a request
+--   made while Loupe is busy queues instead of being turned away.
+-- Row-level security is on for the new tables; only loupe_app can use them, and Supabase's public API can't.
 -- It all runs as one transaction: if any statement fails, nothing changes.
 
 CREATE TABLE "loupe_finals" (
@@ -56,6 +59,7 @@ CREATE TABLE "loupe_share_notes" (
 );
 --> statement-breakpoint
 ALTER TABLE "loupe_share_notes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP INDEX "loupe_cuts_one_at_a_time_idx";--> statement-breakpoint
 ALTER TABLE "loupe_finals" ADD CONSTRAINT "loupe_finals_cut_id_loupe_cuts_id_fk" FOREIGN KEY ("cut_id") REFERENCES "public"."loupe_cuts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "loupe_finals" ADD CONSTRAINT "loupe_finals_project_id_loupe_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."loupe_projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "loupe_share_links" ADD CONSTRAINT "loupe_share_links_project_id_loupe_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."loupe_projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -68,6 +72,8 @@ CREATE UNIQUE INDEX "loupe_finals_one_at_a_time_idx" ON "loupe_finals" USING btr
 CREATE UNIQUE INDEX "loupe_share_links_one_per_scene_idx" ON "loupe_share_links" USING btree ("project_id") WHERE "loupe_share_links"."turned_off_at" is null;--> statement-breakpoint
 CREATE INDEX "loupe_share_notes_project_idx" ON "loupe_share_notes" USING btree ("project_id","id");--> statement-breakpoint
 CREATE INDEX "loupe_share_notes_link_idx" ON "loupe_share_notes" USING btree ("link_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "loupe_cuts_one_working_idx" ON "loupe_cuts" USING btree ("project_id") WHERE "loupe_cuts"."status" = 'working';--> statement-breakpoint
+CREATE UNIQUE INDEX "loupe_cuts_one_waiting_idx" ON "loupe_cuts" USING btree ("project_id") WHERE "loupe_cuts"."status" = 'waiting';--> statement-breakpoint
 CREATE POLICY "loupe_app_all" ON "loupe_finals" AS PERMISSIVE FOR ALL TO "loupe_app" USING (true) WITH CHECK (true);--> statement-breakpoint
 CREATE POLICY "loupe_app_all" ON "loupe_share_links" AS PERMISSIVE FOR ALL TO "loupe_app" USING (true) WITH CHECK (true);--> statement-breakpoint
 CREATE POLICY "loupe_app_all" ON "loupe_share_notes" AS PERMISSIVE FOR ALL TO "loupe_app" USING (true) WITH CHECK (true);--> statement-breakpoint
