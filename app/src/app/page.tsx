@@ -1,7 +1,8 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { HeroLoupe } from "@/components/landing/hero-loupe";
+import { GruntWork } from "@/components/landing/grunt-work";
 import { Savings } from "@/components/landing/savings";
+import { SceneDemo } from "@/components/landing/scene-demo";
 import { Loupe, type LoupeDept } from "@/components/loupe/loupe";
 import { Wordmark } from "@/components/ui/brand";
 import { PLANS } from "@/lib/footage/account-view";
@@ -121,19 +122,19 @@ export default function Landing() {
       </header>
 
       <main>
-        <section className="mx-auto grid max-w-[1160px] items-center gap-6 px-6 pb-16 pt-[5vh] md:grid-cols-[1.15fr_0.85fr]" aria-label="Loupe">
+        <section className="mx-auto grid max-w-[1160px] items-end gap-x-14 gap-y-10 px-6 pb-14 pt-[5vh] md:grid-cols-[1.25fr_0.75fr]" aria-label="Loupe">
           <div>
-            <p className="mb-3.5 text-[13px] text-faint">An assistant editor for scripted scenes</p>
-            <h1 className="mb-5 text-[clamp(52px,8.4vw,116px)] font-semibold leading-[0.9] tracking-[-0.06em] text-balance">
-              Direct your edit<span className="text-faint">.</span>
+            <p className="mb-3.5 text-[13px] text-faint">The assistant editor for narrative film</p>
+            <h1 className="mb-5 text-[clamp(48px,7.6vw,104px)] font-semibold leading-[0.92] tracking-[-0.06em] text-balance">
+              <span className="text-faint">You shot it.</span> Loupe cuts it.
             </h1>
-            <p className="mb-7 max-w-[40ch] text-[clamp(17px,1.6vw,20px)] text-muted">
-              Drop your scene. Loupe watches every take, lines it up with your script and hands you a first cut, with a reason for every shot. Then you give
-              notes, like you would to an editor.
+            <p className="mb-7 max-w-[46ch] text-[clamp(17px,1.6vw,20px)] text-muted">
+              Drop your scene and your script. Loupe watches every take, picks the best read of every line and cuts the scene, reactions and all, with a
+              reason for every shot. Three hours of grunt work becomes a few minutes. You just give notes.
             </p>
             <div className="flex flex-wrap items-center gap-x-[18px] gap-y-3">
               <Link href="/login" className={cta}>Cut your first scene free</Link>
-              <a href="#how" className="text-muted underline decoration-faint underline-offset-4 hover:text-text">See how it works</a>
+              <a href="#how" className="text-muted underline decoration-faint underline-offset-4 hover:text-text">Watch it cut a scene</a>
             </div>
             <div className="mt-[18px] flex flex-wrap gap-x-[18px] gap-y-1 text-[13px] text-faint">
               {["First scene free", "No card to start", "Opens in Premiere"].map((t) => (
@@ -143,48 +144,58 @@ export default function Landing() {
               ))}
             </div>
           </div>
-          <HeroLoupe />
+          <dl className="grid gap-3">
+            {[
+              { was: "3 hours", now: "Minutes", what: "for a first cut. It works while you get a coffee." },
+              { was: "$195", now: "$39", what: "a scene. Three hours of a mid-level editor at $65 an hour, against Loupe. Studios pay $25." },
+              { was: "14 takes", now: "1 click", what: "to hear every take of a line, back to back. No scrubbing." },
+            ].map((b) => (
+              <div key={b.now} className="rounded-[18px] bg-surface px-5 py-4 shadow-lift-sm ring-1 ring-line">
+                <dt className="flex items-baseline gap-2.5">
+                  <s className="text-[15px] text-faint decoration-tally decoration-2">{b.was}</s>
+                  <span className="text-[clamp(30px,3.2vw,40px)] font-light leading-none tracking-[-0.05em] tabular-nums">{b.now}</span>
+                </dt>
+                <dd className="mt-1.5 text-[13.5px] text-muted">{b.what}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
 
-        <section className="mx-auto grid max-w-[1160px] gap-[18px] px-6 pb-[76px] md:grid-cols-3" aria-label="What you get">
-          {[
-            { big: "Minutes", h: "Not hours", p: "A first assembly takes an editor 2–4 hours. Loupe has yours ready while you get a coffee." },
-            { big: <><s className="mr-1 text-[0.6em] text-faint decoration-2">$60</s>$25</>, h: "Per scene, for studios", p: "An editor’s assembly costs $60–250 a scene. Studios cut theirs with Loupe for about $25, so the editor spends their time on the craft." },
-            { big: "Every take", h: "One click away", p: "Click any line and hear it in every take, back to back. Pick the one you want. No scrubbing through clips." },
-          ].map((b) => (
-            <div key={b.h} className="rounded-[20px] bg-surface p-[26px] shadow-lift">
-              <div className="mb-3 text-[clamp(38px,4.4vw,56px)] font-light leading-none tracking-[-0.05em] tabular-nums">{b.big}</div>
-              <h3 className="mb-1.5 text-[17px] font-semibold tracking-[-0.01em]">{b.h}</h3>
-              <p className="text-[14.5px] text-muted">{b.p}</p>
+        <section id="how" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">
+          <h2 className={h2}>Watch Loupe cut a scene</h2>
+          <p className={`${lede} mb-8`}>
+            Two actors, a wide, two close-ups and fourteen takes. Loupe hears every line in every take, throws out the flubs, picks the best reads and cuts
+            it like a story. This is what happens while you get a coffee.
+          </p>
+          <SceneDemo />
+        </section>
+
+        <section className="mx-auto grid max-w-[1160px] items-start gap-x-14 gap-y-8 px-6 pb-[88px] md:grid-cols-[0.8fr_1.2fr]" aria-labelledby="grunt">
+          <div className="md:sticky md:top-8">
+            <h2 id="grunt" className={h2}>All the grunt work. None of it yours.</h2>
+            <p className={lede}>
+              Everything an assistant editor does before the creative part starts. Loupe does it in the background. No babysitting, no settings, no
+              instructions.
+            </p>
+            <div className="mt-6 grid gap-2.5 text-[14.5px] text-muted">
+              <p>
+                <b className="font-semibold text-text">Wi-Fi drops?</b> It says “Reconnecting…” and carries on by itself.
+              </p>
+              <p>
+                <b className="font-semibold text-text">Closed the tab?</b> Drag in the same folder and only what’s missing goes up.
+              </p>
+              <p>
+                <b className="font-semibold text-text">Dropped it twice?</b> Nothing is duplicated. Nothing to clean up.
+              </p>
             </div>
-          ))}
+          </div>
+          <GruntWork />
         </section>
 
         <section id="savings" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">
           <h2 className={h2}>See what you’d save</h2>
           <p className={`${lede} mb-8`}>Move the sliders to match how you work. It picks the cheapest plan for you.</p>
           <Savings />
-        </section>
-
-        <section id="how" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">
-          <h2 className={h2}>Three steps. You only direct.</h2>
-          <p className={`${lede} mb-8`}>No timeline to wrestle and no settings to learn. The editing labor happens in the background.</p>
-          <div className="grid gap-[18px] md:grid-cols-3">
-            {[
-              { n: 1, h: "Drop the folder", p: "It uploads, keeps your folders as shot and makes Premiere proxies, and checks every file arrived in full." },
-              { n: 2, h: "Watch it cut", p: "Loupe hears every take, matches each one to your script and builds the scene: best reads, reactions, J and L cuts, clean dialogue." },
-              { n: 3, h: "Direct, then export", p: "Click a line to hear it in every take, or just say “tighter” or “warmer”. Export a Premiere timeline with every alternate stacked and every reason marked." },
-            ].map((s) => (
-              <div key={s.n} className="grid content-start gap-3.5">
-                <div className="grid aspect-[4/3] place-items-center rounded-[20px] bg-surface shadow-lift">
-                  <Loupe size={92} mood={s.n === 2 ? "think" : s.n === 3 ? "happy" : "listen"} dept="edit" />
-                </div>
-                <span className="text-[12.5px] text-faint">{s.n}</span>
-                <h3 className="text-[18px] font-semibold tracking-[-0.02em]">{s.h}</h3>
-                <p className="text-[14.5px] text-muted">{s.p}</p>
-              </div>
-            ))}
-          </div>
         </section>
 
         <section className="mx-auto max-w-[1160px] px-6 pb-[88px]" aria-labelledby="modes">

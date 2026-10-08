@@ -9,8 +9,8 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 const courierPrime = Courier_Prime({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-script", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Loupe · Direct your edit",
-  description: "Drop your scene. Loupe watches every take, lines it up with your script and hands you a first cut, with a reason for every shot.",
+  title: "Loupe · You shot it. Loupe cuts it.",
+  description: "The assistant editor for narrative film. Drop your scene and script; Loupe watches every take, picks the best reads and cuts the scene in minutes, with a reason for every shot.",
   // Not ready for search engines until launch.
   robots: { index: false, follow: false },
 };

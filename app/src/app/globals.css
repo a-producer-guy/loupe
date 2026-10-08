@@ -70,6 +70,7 @@
   --animate-shake: shake 360ms ease-in-out;
   --animate-dash: dash 900ms linear infinite;
   --animate-glow: glow 1.8s ease-out 1;
+  --animate-drift: drift 6s linear forwards;
 }
 
 @keyframes pop {
@@ -96,6 +97,10 @@
 @keyframes glow {
   0% { box-shadow: 0 0 0 0 rgba(35, 120, 74, 0.35); }
   100% { box-shadow: 0 0 0 18px rgba(35, 120, 74, 0); }
+}
+@keyframes drift {
+  from { transform: scale(1); }
+  to { transform: scale(1.05); }
 }
 @keyframes shimmer {
   from { background-position: -200% 0; }
