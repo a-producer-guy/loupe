@@ -356,3 +356,4 @@
 .room .final-box small{display:block; font-size:12.5px; color:var(--ink3)}
 .room a.btn{text-decoration:none}
 .room .sheet-k{font-size:12px; font-weight:500; color:var(--ink3); margin:4px 0 0}
+.room .final-box .topaz{display:grid; gap:8px; justify-items:start; width:100%; padding-top:10px; border-top:1px solid var(--hair)}

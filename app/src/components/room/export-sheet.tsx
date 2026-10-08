@@ -137,7 +137,7 @@ export function ExportSheet({
   );
 }
 
-type FinalState = { cutId: number | null; canMake: boolean; finals: FinalView[] };
+type FinalState = { cutId: number | null; canMake: boolean; topazCost: number | null; finals: FinalView[] };
 
 /**
  * The final file: the newest version built again from the camera originals at full resolution, with its look and
@@ -152,7 +152,9 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
     if (response?.ok) setState(((await response.json()) as { final: FinalState }).final);
   }, [sceneId]);
   const original = state?.finals.find((f) => f.kind === "original") ?? null;
-  const going = original && (original.status === "waiting" || original.status === "working");
+  const topaz = state?.finals.find((f) => f.kind === "topaz") ?? null;
+  const busy = (f: FinalView | null) => Boolean(f && (f.status === "waiting" || f.status === "working"));
+  const going = busy(original) || busy(topaz);
   useEffect(() => {
     // An effect that only subscribes to the server: the first read, then every few seconds while it's being made.
     let alive = true;
@@ -164,10 +166,10 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
       clearInterval(id);
     };
   }, [load, going]);
-  const make = async () => {
+  const make = async (kind: "original" | "topaz" = "original") => {
     setAsking(true);
     setError(null);
-    const response = await fetch(`/api/shoots/${sceneId}/final`, { method: "POST" }).catch(() => null);
+    const response = await fetch(`/api/shoots/${sceneId}/final`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind }) }).catch(() => null);
     setAsking(false);
     if (!response?.ok) setError(((await response?.json().catch(() => null)) as { error?: string } | null)?.error ?? "Couldn't ask for the final. Try again in a moment.");
     else setState(((await response.json()) as { final: FinalState }).final);
@@ -192,17 +194,43 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
           Download the final · {original.width}×{original.height}
           {original.sizeBytes ? ` · ${formatBytes(original.sizeBytes)}` : ""}
         </a>
-      ) : going ? (
+      ) : busy(original) && original ? (
         <div className="exporting">
           <Ring value={original.progress ?? 0} size={22} stroke={3} />
           <span>{original.status === "waiting" ? "In the queue…" : `Building it from the camera files… ${Math.round((original.progress ?? 0) * 100)}%`}</span>
         </div>
       ) : (
-        <button type="button" className="btn" disabled={asking} onClick={make}>
+        <button type="button" className="btn" disabled={asking} onClick={() => void make()}>
           {original?.status === "failed" ? "Try again" : "Make the final"}
         </button>
       )}
       {original?.status === "failed" && <p className="bad">{original.error ?? "Something went wrong making the final."}</p>}
+      {original?.status === "done" && (original.width ?? 0) < 3456 && (
+        <div className="topaz">
+          <div>
+            <b>4K with Topaz</b>
+            <small>
+              AI sharpening that fills 4K and keeps faces as they are. About ${(state.topazCost ?? 0).toFixed(2)} for this scene, and it takes a while (often 15–40 minutes).
+            </small>
+          </div>
+          {topaz?.status === "done" && topaz.download ? (
+            <a className="btn" href={topaz.download}>
+              Download the 4K version · {topaz.width}×{topaz.height}
+              {topaz.sizeBytes ? ` · ${formatBytes(topaz.sizeBytes)}` : ""}
+            </a>
+          ) : busy(topaz) && topaz ? (
+            <div className="exporting">
+              <Ring value={topaz.progress ?? 0} size={22} stroke={3} />
+              <span>{topaz.status === "waiting" ? "In the queue…" : (topaz.progress ?? 0) < 0.8 ? "Topaz is working on it… you can close this and come back." : "Almost there…"}</span>
+            </div>
+          ) : (
+            <button type="button" className="btn soft" disabled={asking} onClick={() => void make("topaz")}>
+              {topaz?.status === "failed" ? "Try 4K again" : `Make it 4K · about $${(state.topazCost ?? 0).toFixed(2)}`}
+            </button>
+          )}
+          {topaz?.status === "failed" && <p className="bad">{topaz.error ?? "Something went wrong making the 4K version."}</p>}
+        </div>
+      )}
       {error && <p className="bad">{error}</p>}
     </div>
   );
