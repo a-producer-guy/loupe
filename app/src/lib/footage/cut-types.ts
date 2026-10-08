@@ -75,6 +75,8 @@ export type CutResult = {
   folder?: string;
   /** A version made by going back to an earlier one: which. */
   restoredFrom?: number;
+  /** How: picked from the list, or by undo/redo. Undo right after a pick goes back to where you were. */
+  restoredHow?: RestoredHow;
   preview: { path: string; size: number };
   files: { path: string; size: number }[];
 };
@@ -110,6 +112,7 @@ export type Direction = {
   queued?: boolean;
   /** Going back to an earlier version that has to be made again (one from before versions were kept whole). */
   restoredFrom?: number;
+  restoredHow?: RestoredHow;
 };
 
 export type CutView = {
@@ -152,6 +155,8 @@ export type RoomCut = CutState & {
 
 /** One change in a version, in plain words, that can be taken out on its own. */
 export type Change = { key: string; label: string };
+
+export type RestoredHow = "picked" | "undo" | "redo";
 
 const cap = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
 /** Someone's words, quoted and kept short. */

@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { cuts } from "@/lib/db/schema";
 import { CutError, requestCut, sceneCuts } from "@/lib/footage/cuts";
-import { changesOf, folderOf, short, whatChanged, type Change, type CutResult, type CutView, type Direction, type VersionView } from "@/lib/footage/cut-types";
+import { changesOf, folderOf, short, whatChanged, type Change, type CutResult, type CutView, type Direction, type RestoredHow, type VersionView } from "@/lib/footage/cut-types";
 
 // Versions (Guy, Oct 8: undo and going back, "SUPER smart but an easy breezy process"). Every finished version is
 // kept. Each is named by what changed, in plain words. Going back to one never deletes anything: it becomes the
@@ -78,7 +78,7 @@ export async function sceneVersions(db: Db, projectId: number, prefix: string, s
  * Goes back to a version: it becomes the newest one. Kept whole (Oct 8 on): instantly, the same files. Older: Loupe
  * makes it again from its choices (a few minutes). Nothing is deleted, so going forward again is just as easy.
  */
-export async function restoreVersion(db: Db, projectId: number, id: number, by: string): Promise<{ instant: boolean }> {
+export async function restoreVersion(db: Db, projectId: number, id: number, by: string, how: RestoredHow = "picked"): Promise<{ instant: boolean }> {
   const { done, working } = await sceneCuts(db, projectId);
   if (working) throw new CutError("Loupe is in the middle of a change. Once it's done, you can go back to any version.", 409);
   const [source] = await db.select().from(cuts).where(and(eq(cuts.id, id), eq(cuts.projectId, projectId), eq(cuts.status, "done")));
@@ -95,20 +95,20 @@ export async function restoreVersion(db: Db, projectId: number, id: number, by: 
       coverage: source.coverage,
       direction: direction ? { ...direction, notes: (direction.notes ?? []).filter((n) => n.reply !== null) } : null,
       status: "done",
-      result: { ...result, restoredFrom: source.id },
+      result: { ...result, restoredFrom: source.id, restoredHow: how },
       requestedBy: by,
       startedAt: new Date(),
       finishedAt: new Date(),
     });
     return { instant: true };
   }
-  await requestCutWith(db, projectId, by, source, direction);
+  await requestCutWith(db, projectId, by, source, direction, how);
   return { instant: false };
 }
 
 /** An older version made again from its own choices. */
-async function requestCutWith(db: Db, projectId: number, by: string, source: Row, direction: Direction | null): Promise<CutView> {
-  const d: Direction = { ...(direction ?? {}), notes: (direction?.notes ?? []).filter((n) => n.reply !== null), restoredFrom: source.id };
+async function requestCutWith(db: Db, projectId: number, by: string, source: Row, direction: Direction | null, how: RestoredHow): Promise<CutView> {
+  const d: Direction = { ...(direction ?? {}), notes: (direction?.notes ?? []).filter((n) => n.reply !== null), restoredFrom: source.id, restoredHow: how };
   return requestCut(db, projectId, by, { scriptId: source.scriptId, leadRole: source.leadRole, direction: d });
 }
 
@@ -128,19 +128,26 @@ async function doneRows(db: Db, projectId: number) {
   };
   // The versions that were changes, not trips back.
   const made = rows.filter((r) => !back(r)).map((r) => r.id);
-  return { newest: rows.at(-1)?.id ?? null, original, made };
+  const newest = rows.at(-1);
+  const picked = newest && back(newest) ? ((newest.result as CutResult | null)?.restoredHow ?? (newest.direction as Direction | null)?.restoredHow) === "picked" : false;
+  return { newest: newest?.id ?? null, original, made, picked, before: rows.at(-2)?.id ?? null };
 }
 
 /**
  * Undo: one step back through the changes. Going back is itself a version, so undo again keeps walking back (not
- * flipping between two), and redo walks forward again.
+ * flipping between two), and redo walks forward again. Right after picking a version from the list, undo takes you
+ * back to where you were.
  */
 export async function undoVersion(db: Db, projectId: number, by: string): Promise<{ instant: boolean; to: number }> {
-  const { newest, original, made } = await doneRows(db, projectId);
+  const { newest, original, made, picked, before: previous } = await doneRows(db, projectId);
+  if (picked && previous) {
+    const to = original(previous);
+    return { ...(await restoreVersion(db, projectId, to, by, "undo")), to };
+  }
   const at = newest ? original(newest) : null;
   const before = at ? made.filter((id) => id < at).at(-1) : undefined;
   if (!before) throw new CutError("There's nothing to undo yet: this is the first cut.");
-  return { ...(await restoreVersion(db, projectId, before, by)), to: before };
+  return { ...(await restoreVersion(db, projectId, before, by, "undo")), to: before };
 }
 
 /** Redo: forward again to the change after the one you're on. */
@@ -149,7 +156,7 @@ export async function redoVersion(db: Db, projectId: number, by: string): Promis
   const at = newest ? original(newest) : null;
   const after = at ? made.find((id) => id > at) : undefined;
   if (!after) throw new CutError("There's nothing to redo: this is the newest change.");
-  return { ...(await restoreVersion(db, projectId, after, by)), to: after };
+  return { ...(await restoreVersion(db, projectId, after, by, "redo")), to: after };
 }
 
 /** Takes one change out of the current cut, keeping everything else: Loupe makes that version. */

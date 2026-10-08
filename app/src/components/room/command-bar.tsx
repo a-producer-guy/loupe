@@ -373,8 +373,11 @@ function Status({ cut }: { cut: RoomCut }) {
   const next = cut.waiting;
   const step = cut.steps.findIndex((s) => s.key === doing?.step);
   const since = doing?.startedAt ? Math.max(0, Math.round((now - Date.parse(doing.startedAt)) / 1000)) : null;
-  const what = asked(doing) ?? (doing ? (cut.done && whatChanged(cut.done, doing)) || "A new version" : null);
-  const queued = asked(next) ?? (next ? (cut.done && whatChanged(cut.done, next)) || "Another version" : null);
+  // In your words; else going back, or what it changes.
+  const name = (v: CutView | null, fallback: string) =>
+    v ? (v.direction?.restoredFrom ? "Going back to an earlier version" : (asked(v) ?? ((cut.done && whatChanged(cut.done, v)) || fallback))) : null;
+  const what = name(doing, "A new version");
+  const queued = name(next, "Another version");
 
   return (
     <div className="status" role="status" aria-live="polite">
