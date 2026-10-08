@@ -307,7 +307,9 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
     const shoot = await loadShoot(ctx.sql, job.project_id);
     const { library, own } = await loadLibrary(ctx.sql, shoot.accountId!, shoot.id);
     log(`${shoot.takes.length} takes, ${library.length} scripts in the account${own ? ", one from the scene's folder" : ""} (try ${job.attempts}).`);
-    const folder = `${shoot.prefix}/${CUT_FOLDER}`;
+    // Each version's package in a folder of its own (Guy, Oct 8: versions you can go back to): nothing is overwritten.
+    const versionFolder = `${CUT_FOLDER}/v${job.id}`;
+    const folder = `${shoot.prefix}/${versionFolder}`;
     // Transcripts are kept beside the package, so a note doesn't transcribe twice.
     const transcriptKey = (t: ShootTake) => `${shoot.prefix}/Loupe work/${path.posix.basename(t.proxyKey)}.words.json`;
     const establishingKey = `${shoot.prefix}/Loupe work/establishing-matched.mp4`;
@@ -358,7 +360,7 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
       const expected = result.files.find((x) => x.path === f.path)?.size;
       if ((await ctx.storage.size(key)) !== expected) throw new Error(`B2 doesn't hold all of ${f.path}.`);
     }
-    await finishAssembly(ctx.sql, job.id, ctx.workerId, result);
+    await finishAssembly(ctx.sql, job.id, ctx.workerId, { ...result, folder: versionFolder });
     log(`done: ${result.seconds.toFixed(0)} s, ${result.counts.shots} shots.`);
   } catch (error) {
     if (ctx.signal.aborted) {

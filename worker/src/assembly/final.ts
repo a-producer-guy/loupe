@@ -157,7 +157,7 @@ export async function runFinal(ctx: FinalContext, job: FinalJob) {
     const disk = await statfs(ctx.workDir);
     if (disk.bavail * disk.bsize < biggest * 1.2 + 3e9) throw new Error("Loupe's worker is short of room right now; it'll try again shortly.");
     dir = await mkdtemp(path.join(ctx.workDir, `final-${job.id}-`));
-    const folder = `${prefix}/${CUT_FOLDER}`;
+    const folder = `${prefix}/${result.folder ?? CUT_FOLDER}`;
 
     // The looks: each clip's LUT, then Loupe's grade from a note on the colour.
     const lutFiles = new Map<number, string>();

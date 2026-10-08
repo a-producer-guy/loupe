@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
-import { files, projects, proxyJobs, scripts } from "@/lib/db/schema";
-import type { RoomCut } from "@/lib/footage/cut-types";
+import { cuts, files, projects, proxyJobs, scripts } from "@/lib/db/schema";
+import { folderOf, type CutResult, type RoomCut } from "@/lib/footage/cut-types";
 import { cutState } from "@/lib/footage/cuts";
 import { previewKey, thumbnailKey } from "@/lib/footage/names";
 import { signView } from "@/lib/storage";
@@ -41,5 +41,15 @@ export async function roomCut(db: Db, scene: typeof projects.$inferSelect, by: s
   const heading = result?.scriptId
     ? ((await db.select({ heading: scripts.heading }).from(scripts).where(and(eq(scripts.id, result.scriptId), eq(scripts.accountId, accountId))))[0]?.heading ?? null)
     : null;
-  return { ...state, takes, heading };
+  // The version before, when its picture is kept: holding \\ flips to it, to see and hear what changed.
+  const [before] = state.done
+    ? await db
+        .select({ id: cuts.id, result: cuts.result })
+        .from(cuts)
+        .where(and(eq(cuts.projectId, scene.id), eq(cuts.status, "done"), lt(cuts.id, state.done.id)))
+        .orderBy(desc(cuts.id))
+        .limit(1)
+    : [];
+  const previous = before && (before.result as CutResult | null)?.folder ? await signView(`${scene.storagePrefix}/${folderOf(before.result as CutResult)}/${(before.result as CutResult).preview.path}`, `cut-${before.id}`, "mp4") : null;
+  return { ...state, takes, heading, previous };
 }

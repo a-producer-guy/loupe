@@ -11,6 +11,7 @@ import path from "node:path";
 import { FalClient } from "./ai/fal.js";
 import { runFinalLoop } from "./assembly/final.js";
 import { runAssemblyLoop, startCutIfReady } from "./assembly/job.js";
+import { runTopazLoop } from "./assembly/topaz.js";
 import { loadConfig } from "./config.js";
 import { claimJob, connect, heartbeat, markDone, markFailed, markSkipped, releaseJobs, requeueStale, type Job } from "./jobs.js";
 import { buildThumbnailArgs, makeProxy, PermanentProxyError, runFfmpeg, unsupportedFormatReason } from "./proxy.js";
@@ -26,6 +27,7 @@ let stopping = false;
 const cuts = new AbortController();
 let cutLoop: Promise<void> | null = null;
 let finalLoop: Promise<void> | null = null;
+let topazLoop: Promise<void> | null = null;
 
 const log = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
 
@@ -165,7 +167,7 @@ async function main() {
   await mkdir(config.workDir, { recursive: true });
   // Leftovers from a previous run that was cut off.
   for (const entry of await readdir(config.workDir)) {
-    if (entry.startsWith("job-") || entry.startsWith("cut-") || entry.startsWith("final-")) await rm(path.join(config.workDir, entry), { recursive: true, force: true });
+    if (entry.startsWith("job-") || entry.startsWith("cut-") || entry.startsWith("final-") || entry.startsWith("topaz-")) await rm(path.join(config.workDir, entry), { recursive: true, force: true });
   }
   log(`Proxy worker ${workerId} started (${config.concurrency} at a time).`);
   // Finals from the camera originals need no AI: always on.
@@ -184,6 +186,9 @@ async function main() {
         const timer = setTimeout(resolve, ms);
         cuts.signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
       });
+    topazLoop = runTopazLoop({ sql, storage, fal: new FalClient(falKey), tools: config.tools, workDir: config.workDir, workerId, signal: cuts.signal, log, sleep: pause }).catch((error) =>
+      log(`The 4K loop stopped: ${error instanceof Error ? error.message : error}`),
+    );
     cutLoop = runAssemblyLoop({ sql, storage, fal: new FalClient(falKey), tools: config.tools, workDir: config.workDir, workerId, signal: cuts.signal, log, sleep }).catch((error) =>
       log(`The cut loop stopped: ${error instanceof Error ? error.message : error}`),
     );
@@ -217,6 +222,7 @@ async function shutdown(signalName: string) {
   await Promise.allSettled([...running.values()].map((r) => r.done));
   await cutLoop?.catch(() => {});
   await finalLoop?.catch(() => {});
+  await topazLoop?.catch(() => {});
   await releaseJobs(sql, ids, workerId).catch(() => {});
   await sql.end({ timeout: 5 });
   process.exit(0);

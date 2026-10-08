@@ -36,6 +36,8 @@ export type ProbeStream = {
   pix_fmt?: string;
   color_space?: string;
   color_range?: string;
+  color_primaries?: string;
+  color_transfer?: string;
   r_frame_rate?: string;
   avg_frame_rate?: string;
   channels?: number;

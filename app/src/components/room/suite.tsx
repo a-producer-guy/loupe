@@ -96,6 +96,9 @@ export function Suite({
   const result = cut.done?.result ?? null;
   const working = cut.latest && (cut.latest.status === "waiting" || cut.latest.status === "working");
   const video = useRef<HTMLVideoElement>(null);
+  // The version before, under the picture: holding \ flips to it at the same moment, to see and hear what changed.
+  const before = useRef<HTMLVideoElement>(null);
+  const [comparing, setComparing] = useState(false);
   const page = useRef<HTMLDivElement>(null);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -141,14 +144,44 @@ export function Suite({
     else v.pause();
   };
 
-  // J K L and the arrows, like an editing room, and C for subtitles (not while typing a note).
+  const compare = (on: boolean) => {
+    const v = video.current;
+    const b = before.current;
+    if (!v || !b) return;
+    if (on) {
+      b.currentTime = Math.min(v.currentTime, Math.max(0, (b.duration || Infinity) - 0.05));
+      if (!v.paused) void b.play().catch(() => {});
+      b.muted = false;
+      v.muted = true;
+    } else {
+      b.pause();
+      b.muted = true;
+      v.muted = false;
+    }
+    setComparing(on);
+  };
+  useEffect(() => {
+    const up = (e: KeyboardEvent) => e.code === "Backslash" && compare(false);
+    const away = () => compare(false);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", away);
+    return () => {
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", away);
+    };
+  });
+
+  // J K L and the arrows, like an editing room, C for subtitles, and \ held to compare (not while typing a note).
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest("input, textarea, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;
       const v = video.current;
       if (!v || !result) return;
-      if (e.key === "k" || e.key === " ") {
+      if (e.code === "Backslash") {
+        e.preventDefault();
+        if (!e.repeat && cut.previous) compare(true);
+      } else if (e.key === "k" || e.key === " ") {
         e.preventDefault();
         toggle();
       } else if (e.key === "l") void v.play().catch(() => {});
@@ -219,7 +252,19 @@ export function Suite({
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#121210" }}
             />
           ) : null}
-          {subtitle}
+          {cut.previous && cut.preview ? (
+            <video
+              ref={before}
+              src={cut.previous}
+              playsInline
+              muted
+              preload="auto"
+              aria-hidden="true"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#121210", opacity: comparing ? 1 : 0, pointerEvents: "none" }}
+            />
+          ) : null}
+          {comparing && <span className="chip compare">The version before</span>}
+          {!comparing && subtitle}
           <button type="button" className="pp" aria-label={playing ? "Pause" : "Play"} onClick={toggle}>
             <span>
               {playing ? (
@@ -299,7 +344,7 @@ export function Suite({
             {cap(result.partner)}
           </span>
           <span>Line on top = reaction shot</span>
-          <span>J K L, ← → and C for subtitles</span>
+          <span>J K L, ← → and C for subtitles{cut.previous ? " · hold \\ to compare with the version before" : ""}</span>
         </div>
         {notes.length > 0 && <ViewerNotes notes={notes} busy={busy} onSeek={(s) => seek(s)} onNote={onNote} />}
       </div>
@@ -414,6 +459,14 @@ function ViewerNotes({ notes, busy, onSeek, onNote }: { notes: ViewerNote[]; bus
   const [all, setAll] = useState(false);
   const open = notes.filter((n) => !n.sentAt && !n.doneAt).sort((a, b) => a.at - b.at);
   const handled = notes.filter((n) => n.sentAt || n.doneAt);
+  if (!open.length && !all)
+    return (
+      <div className="room-notes viewer-notes">
+        <button type="button" className="textlink fine" onClick={() => setAll(true)}>
+          {handled.length} earlier {handled.length === 1 ? "note" : "notes"} from viewers
+        </button>
+      </div>
+    );
   return (
     <div className="room-notes viewer-notes">
       <h3>

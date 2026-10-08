@@ -8,7 +8,7 @@ import { sceneScript } from "@/lib/footage/scripts";
 // (worker/src/assembly), and is directed with notes. The worker fills in `result` (run.ts, AssemblyResult) and puts
 // the package in the scene's "Loupe Cut" folder in B2.
 
-import { CUT_FOLDER, CUT_STEPS, type CutResult, type CutState, type CutView, type Direction } from "./cut-types";
+import { CUT_FOLDER, CUT_STEPS, folderOf, type CutResult, type CutState, type CutView, type Direction } from "./cut-types";
 
 export * from "./cut-types";
 
@@ -151,9 +151,18 @@ async function ask(
   throw new CutError("Loupe is busy with this scene. Try that again in a moment.", 409);
 }
 
-/** Another version with corrections (whose scene it is, the script), or the same again. */
-export async function requestCut(db: Db, projectId: number, by: string, corrections: { scriptId?: number | null; leadRole?: string | null } = {}): Promise<CutView> {
-  return ask(db, projectId, by, { words: null, ...corrections });
+/**
+ * Another version with corrections (whose scene it is, the script, a whole direction), or the same again. `words`
+ * says it in plain words for when Loupe is busy and it has to queue.
+ */
+export async function requestCut(
+  db: Db,
+  projectId: number,
+  by: string,
+  corrections: { scriptId?: number | null; leadRole?: string | null; direction?: Direction; words?: string } = {},
+): Promise<CutView> {
+  const { direction, words, ...rest } = corrections;
+  return ask(db, projectId, by, { words: words ?? null, ...rest, ...(direction ? { direction: () => direction } : {}) });
 }
 
 export const MAX_NOTE = 500;
@@ -202,7 +211,8 @@ export async function pickTake(db: Db, projectId: number, by: string, line: numb
 
 /** The package's files as they sit in the scene's folder (for the Premiere download). */
 export function packageFiles(prefix: string, result: CutResult): { path: string; key: string; size: number }[] {
-  return result.files.map((f) => ({ path: `${CUT_FOLDER}/${f.path}`, key: `${prefix}/${CUT_FOLDER}/${f.path}`, size: f.size }));
+  // Saved as "Loupe Cut/…" whichever version it is, as the timeline inside it expects.
+  return result.files.map((f) => ({ path: `${CUT_FOLDER}/${f.path}`, key: `${prefix}/${folderOf(result)}/${f.path}`, size: f.size }));
 }
 
 
@@ -211,6 +221,6 @@ export function packageFiles(prefix: string, result: CutResult): { path: string;
 export async function cutState(db: Db, projectId: number, prefix: string, by: string | null, sign: (key: string, version?: string, extension?: string) => Promise<string>): Promise<CutState> {
   await startCutIfReady(db, projectId, by);
   const [{ latest, done, working, waiting, versions }, { ready }, script] = await Promise.all([sceneCuts(db, projectId), takesReady(db, projectId), sceneScript(db, projectId)]);
-  const preview = done?.result ? await sign(`${prefix}/${CUT_FOLDER}/${done.result.preview.path}`, `cut-${done.id}`, "mp4") : null;
+  const preview = done?.result ? await sign(`${prefix}/${folderOf(done.result)}/${done.result.preview.path}`, `cut-${done.id}`, "mp4") : null;
   return { latest, done, working, waiting, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null };
 }

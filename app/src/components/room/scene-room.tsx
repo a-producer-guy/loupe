@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRefreshWhenSettled } from "@/components/shoots/refresh";
 import { useShootDownload } from "@/components/shoots/use-download";
 import { Ring } from "@/components/ui/progress";
@@ -16,6 +16,7 @@ import { ShareSheet } from "./share-sheet";
 import type { ViewerNote } from "@/lib/footage/share";
 import { Ingest } from "./ingest";
 import { scopeWords, Suite, type Scope } from "./suite";
+import { useVersionActions, VersionsMenu } from "./versions";
 import "./room.css";
 
 // A scene in Loupe (the approved mockup, not Footage's shoot page): the footage coming in (screen 2), then the
@@ -85,6 +86,21 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
     return null;
   };
 
+  const versions = useVersionActions(shoot.id, refreshCut);
+  const working = Boolean(cut.working || cut.waiting);
+  // ⌘Z / ⌘⇧Z step back and forward through the versions (not while typing: there they undo the typing).
+  const { act } = versions;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== "z" || !cut.done) return;
+      if ((e.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+      e.preventDefault();
+      if (!e.repeat) void act({ action: e.shiftKey ? "redo" : "undo" });
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [act, cut.done]);
+
   const done = cut.done?.result;
   const cutting = !done && cut.latest && (cut.latest.status === "waiting" || cut.latest.status === "working");
   const phase = done ? "suite" : cutting ? "cutting" : "ingest";
@@ -102,8 +118,8 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
               </Link>
               {" / "}
               <b>{shoot.name}</b>
-              {cut.versions > 1 && <span> · version {cut.versions}</span>}
             </div>
+            {done && <VersionsMenu sceneId={shoot.id} n={cut.versions} working={working} onChanged={refreshCut} />}
             <div className="top-r">
               {phase === "ingest" && shoot.files.total > 0 && (
                 <button type="button" className="btn soft" onClick={choose}>
@@ -156,6 +172,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
               onScope={setScope}
               busy={busy}
               onExtra={(extra, on) => post({ action: "extra", extra, on })}
+              onUndo={cut.versions > 1 ? () => void act({ action: "undo" }) : undefined}
               onSend={(note) => {
                 // The mode and the scope, in plain words in front of the note, so Loupe knows what it may change.
                 const mode = dept === "sound" ? "About the sound" : dept === "color" ? "About the colour" : dept === "preview" ? "A question, change nothing" : null;

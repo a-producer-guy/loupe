@@ -3,6 +3,7 @@ import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
 import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Config } from "./config.js";
 
 // B2 through its S3 API, with the worker's own key (read and write, no delete).
@@ -45,6 +46,11 @@ export function createStorage(config: Config["b2"]) {
       } finally {
         signal.removeEventListener("abort", abort);
       }
+    },
+
+    /** A link that reads one file for a while (fal fetching a final to make it 4K). Read only. */
+    signGet(key: string, seconds: number): Promise<string> {
+      return getSignedUrl(client, new GetObjectCommand({ Bucket, Key: key }), { expiresIn: seconds });
     },
 
     async size(key: string): Promise<number | null> {

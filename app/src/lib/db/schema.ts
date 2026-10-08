@@ -428,6 +428,10 @@ export const finals = pgTable(
     sizeBytes: bigint("size_bytes", { mode: "number" }),
     width: integer("width"),
     height: integer("height"),
+    // Topaz on fal: its request, saved the moment it's made so a restarted worker waits for it instead of paying
+    // twice, and what it cost, in dollars.
+    request: jsonb("request").$type<Record<string, unknown>>(),
+    cost: real("cost"),
     requestedBy: text("requested_by"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CutView } from "@/lib/footage/cut-types";
+import { whatChanged, type CutView } from "@/lib/footage/cut-types";
 import { Loupe, type LoupeDept } from "@/components/loupe/loupe";
 import type { RoomCut } from "@/lib/footage/cut-types";
 import { scopeLabel, type Scope } from "./suite";
@@ -70,6 +70,7 @@ export function CommandBar({
   onScope,
   onSend,
   onExtra,
+  onUndo,
   busy,
 }: {
   cut: RoomCut;
@@ -79,6 +80,8 @@ export function CommandBar({
   onScope: (s: Scope) => void;
   onSend: (note: string) => Promise<boolean>;
   onExtra: (extra: "establishing" | "ambience" | "score", on: boolean) => Promise<boolean>;
+  /** Back to the version before (there is one). */
+  onUndo?: () => void;
   busy: boolean;
 }) {
   const [text, setText] = useState("");
@@ -179,6 +182,19 @@ export function CommandBar({
         <div className="reply" role="status">
           <b>Loupe</b>
           <span>{reply.text}</span>
+          {!working && onUndo && (
+            <button
+              type="button"
+              className="soft"
+              title="Back to the version before (⌘Z)"
+              onClick={() => {
+                setSeen(reply.key);
+                onUndo();
+              }}
+            >
+              Undo
+            </button>
+          )}
           {!working && (
             <button type="button" onClick={() => setSeen(reply.key)}>
               OK
@@ -357,8 +373,11 @@ function Status({ cut }: { cut: RoomCut }) {
   const next = cut.waiting;
   const step = cut.steps.findIndex((s) => s.key === doing?.step);
   const since = doing?.startedAt ? Math.max(0, Math.round((now - Date.parse(doing.startedAt)) / 1000)) : null;
-  const what = asked(doing) ?? (doing ? "A new version" : null);
-  const queued = asked(next) ?? (next ? "Another version" : null);
+  // In your words; else going back, or what it changes.
+  const name = (v: CutView | null, fallback: string) =>
+    v ? (v.direction?.restoredFrom ? "Going back to an earlier version" : (asked(v) ?? ((cut.done && whatChanged(cut.done, v)) || fallback))) : null;
+  const what = name(doing, "A new version");
+  const queued = name(next, "Another version");
 
   return (
     <div className="status" role="status" aria-live="polite">
