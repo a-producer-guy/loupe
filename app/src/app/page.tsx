@@ -146,7 +146,7 @@ export default function Landing() {
             <figure className="mt-8 max-w-[46ch] border-l-2 border-tally pl-4">
               <blockquote className="text-[clamp(18px,1.8vw,22px)] font-medium leading-snug tracking-[-0.02em]">“When things just work, life is amazing.”</blockquote>
               <figcaption className="mt-1.5 text-[13px] text-faint">
-                <b className="font-medium text-muted">Steven</b> · Editor and founder, Reelarc
+                <b className="font-medium text-muted">Steven</b> · Editor and co-founder, Reelarc
               </figcaption>
             </figure>
           </div>
