@@ -102,6 +102,9 @@
   from { transform: scale(1); }
   to { transform: scale(1.05); }
 }
+@keyframes rainfall {
+  to { background-position: -60px 240px; }
+}
 @keyframes shimmer {
   from { background-position: -200% 0; }
   to { background-position: 200% 0; }
