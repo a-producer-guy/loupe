@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { DownloadState } from "@/components/shoots/use-download";
 import { Ring } from "@/components/ui/progress";
-import type { CutResult } from "@/lib/footage/cut-types";
+import type { CutResult, FinalView } from "@/lib/footage/cut-types";
 import { formatBytes } from "@/lib/footage/names";
 
 // Export (the mockup's "Premiere timeline" sheet): pick the editing app, the scene downloads laid out as it is in
@@ -39,12 +39,17 @@ const APPS: Record<App, { name: string; maker: string; logo: string | null; step
 };
 
 export function ExportSheet({
+  sceneId,
   result,
   state,
   supported,
   onStart,
+  onAgain,
   onClose,
 }: {
+  sceneId: number;
+  /** Make the version again (one cut before finals existed). */
+  onAgain: () => void;
   result: CutResult;
   state: DownloadState;
   supported: boolean;
@@ -74,6 +79,8 @@ export function ExportSheet({
     <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="exportH" onClick={(e) => e.target === e.currentTarget && !working && onClose()}>
       <div className="sheet-card">
         <h2 id="exportH">{state.step === "done" && app ? `Ready for ${APPS[app].name}` : "Export"}</h2>
+        <FinalFile sceneId={sceneId} onAgain={onAgain} />
+        <h3 className="sheet-k">Or keep editing</h3>
         <div className="file">{xml}</div>
 
         {!app || state.step === "idle" || state.step === "error" ? (
@@ -126,6 +133,77 @@ export function ExportSheet({
           {state.step === "done" ? "Done" : "Close"}
         </button>
       </div>
+    </div>
+  );
+}
+
+type FinalState = { cutId: number | null; canMake: boolean; finals: FinalView[] };
+
+/**
+ * The final file: the newest version built again from the camera originals at full resolution, with its look and
+ * mix. Asked for here; the worker makes it (a few minutes); then it saves straight to the computer.
+ */
+function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void }) {
+  const [state, setState] = useState<FinalState | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const response = await fetch(`/api/shoots/${sceneId}/final`, { cache: "no-store" }).catch(() => null);
+    if (response?.ok) setState(((await response.json()) as { final: FinalState }).final);
+  }, [sceneId]);
+  const original = state?.finals.find((f) => f.kind === "original") ?? null;
+  const going = original && (original.status === "waiting" || original.status === "working");
+  useEffect(() => {
+    // An effect that only subscribes to the server: the first read, then every few seconds while it's being made.
+    let alive = true;
+    const tick = () => alive && void load();
+    tick();
+    const id = setInterval(tick, going ? 3_000 : 15_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [load, going]);
+  const make = async () => {
+    setAsking(true);
+    setError(null);
+    const response = await fetch(`/api/shoots/${sceneId}/final`, { method: "POST" }).catch(() => null);
+    setAsking(false);
+    if (!response?.ok) setError(((await response?.json().catch(() => null)) as { error?: string } | null)?.error ?? "Couldn't ask for the final. Try again in a moment.");
+    else setState(((await response.json()) as { final: FinalState }).final);
+  };
+  if (!state) return <div className="final-box"><p className="fine">Checking the final…</p></div>;
+  return (
+    <div className="final-box">
+      <div>
+        <b>The final file</b>
+        <small>Full resolution from your camera files, with the look and the mix. An MP4 to deliver.</small>
+      </div>
+      {!state.canMake ? (
+        <p className="fine">
+          This version was cut before finals existed.{" "}
+          <button type="button" className="textlink" onClick={onAgain}>
+            Make it again
+          </button>{" "}
+          (a few minutes), then come back here.
+        </p>
+      ) : original?.status === "done" && original.download ? (
+        <a className="btn" href={original.download}>
+          Download the final · {original.width}×{original.height}
+          {original.sizeBytes ? ` · ${formatBytes(original.sizeBytes)}` : ""}
+        </a>
+      ) : going ? (
+        <div className="exporting">
+          <Ring value={original.progress ?? 0} size={22} stroke={3} />
+          <span>{original.status === "waiting" ? "In the queue…" : `Building it from the camera files… ${Math.round((original.progress ?? 0) * 100)}%`}</span>
+        </div>
+      ) : (
+        <button type="button" className="btn" disabled={asking} onClick={make}>
+          {original?.status === "failed" ? "Try again" : "Make the final"}
+        </button>
+      )}
+      {original?.status === "failed" && <p className="bad">{original.error ?? "Something went wrong making the final."}</p>}
+      {error && <p className="bad">{error}</p>}
     </div>
   );
 }

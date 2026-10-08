@@ -78,8 +78,10 @@ export function signView(key: string, version?: string, extension = "jpg"): Prom
   });
 }
 
-export function signDownload(key: string): Promise<string> {
-  return getSignedUrl(s3(), new GetObjectCommand({ Bucket: env.b2.bucket, Key: key }), {
+export function signDownload(key: string, saveAs?: string): Promise<string> {
+  // saveAs: the browser saves it under this name instead of playing it (a final file).
+  const disposition = saveAs ? { ResponseContentDisposition: `attachment; filename="${saveAs.replace(/["\\\r\n]/g, "")}"` } : {};
+  return getSignedUrl(s3(), new GetObjectCommand({ Bucket: env.b2.bucket, Key: key, ...disposition }), {
     expiresIn: DOWNLOAD_LINK_SECONDS,
   });
 }

@@ -66,8 +66,25 @@ export type CutResult = {
   lut: string | null;
   look?: { note: string; said: string; grade: Record<string, unknown> } | null;
   performances?: Record<string, string>;
+  /** How to build this version again from the camera originals (versions from Oct 8 on): the final file needs it. */
+  render?: { seconds: number };
   preview: { path: string; size: number };
   files: { path: string; size: number }[];
+};
+
+/** A final file of a version: from the camera originals, or made 4K with Topaz. */
+export type FinalView = {
+  id: number;
+  cutId: number;
+  kind: "original" | "topaz";
+  status: "waiting" | "working" | "done" | "failed";
+  progress: number | null;
+  error: string | null;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number | null;
+  /** A link that saves the file, once it's done. */
+  download: string | null;
 };
 
 export type LoupeNote = { note: string; reply: string | null; at: string };

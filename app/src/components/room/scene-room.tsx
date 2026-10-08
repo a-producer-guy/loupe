@@ -165,7 +165,15 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
           )}
           {sharing && <ShareSheet path={share.path} busy={busy} onShare={() => void shareAction({ action: "on" })} onStop={() => void shareAction({ action: "off" })} onClose={() => setSharing(false)} />}
           {exporting && done && (
-            <ExportSheet result={done} state={download.state} supported={download.supported} onStart={download.start} onClose={() => setExporting(false)} />
+            <ExportSheet
+              sceneId={shoot.id}
+              result={done}
+              state={download.state}
+              supported={download.supported}
+              onStart={download.start}
+              onAgain={() => (setExporting(false), void post({ action: "again" }))}
+              onClose={() => setExporting(false)}
+            />
           )}
         </div>
       )}

@@ -19,7 +19,7 @@ import { ffmpegPipe, readAudio, voicedWords } from "./audio.js";
 import { cleanTake, matchVoice, roomTone, VOICE_BANDS, voiceMatch, type Denoise, type VoiceColour } from "./dialogue.js";
 import { assembleAligned, describeShots, FPS, keepSaidLines, onMovement, type Setup, type Shot } from "./engine.js";
 import { lineFlaws, pictureOf, type Picture } from "./picture.js";
-import { CUT_FOLDER, introSeconds, mix, overlapIntro, pushIns, quietJoins, readMe, renderPreview, sceneFrame, timelineXml, type Intro, type TakeMedia } from "./finish.js";
+import { CUT_FOLDER, introSeconds, mix, overlapIntro, type PushIn, pushIns, quietJoins, readMe, renderPreview, sceneFrame, timelineXml, type Intro, type TakeMedia } from "./finish.js";
 import { ESTABLISHING_SECONDS, frameOf, makeEstablishing } from "./establishing.js";
 import { cameraFor, FALLBACK_BRIEF, makeAmbience, makeScore, sceneBrief } from "./music.js";
 import { workOutScene, type Corrections, type LibraryScript, type SceneTake } from "./scene.js";
@@ -113,6 +113,19 @@ export type AssemblyResult = {
    * of `lines`, when it's heard in the preview, word by word (seconds from the preview's start).
    */
   subs: { line: number; s: number; e: number; words: { t: string; s: number }[] }[];
+  /**
+   * How to build this version again from the camera originals (the final file, final.ts): every shot's source take
+   * and in point, where it sits, the moves, the establishing shot and the mix, which are in the package.
+   */
+  render: {
+    seconds: number;
+    pieces: { take: string; in: number; recIn: number; recOut: number }[];
+    pushIns: PushIn[];
+    handheld: boolean;
+    intro: { seconds: number; overlap: number | null; path: string } | null;
+    mix: string;
+    grade: string | null;
+  };
   /** The package, relative to the scene's "Loupe Cut" folder. */
   preview: { path: string; size: number };
   files: { path: string; size: number }[];
@@ -454,6 +467,8 @@ export async function makeAssembly(
     ...["room_tone.wav", ...(layers.ambience ? ["ambience.wav"] : []), ...(layers.music ? ["music.wav"] : [])].map((name) => ({ path: `Audio/${name}`, file: path.join(audioDir, name), contentType: "audio/wav" })),
     ...(intro ? [{ path: "Establishing (AI).mp4", file: path.join(pkg, "Establishing (AI).mp4"), contentType: "video/mp4" }] : []),
     ...(look ? [{ path: "Loupe look.cube", file: gradeFile, contentType: "text/plain; charset=utf-8" }] : []),
+    // The finished mix, for the final file (made from the camera originals later, with exactly this sound).
+    { path: "Audio/mix.wav", file: mixFile, contentType: "audio/wav" },
   ];
   // The shot list as the preview plays it: the establishing shot first, then the cut (its sound starting under the
   // shot's end), with its push-ins.
@@ -540,6 +555,15 @@ export async function makeAssembly(
     lut: shoot.lut?.name ?? null,
     look,
     ...(Object.keys(performance).length ? { performances: Object.fromEntries(Object.entries(performance).map(([t, p]) => [t, p.note.replace(/^on watching: /, "")])) } : {}),
+    render: {
+      seconds: cut.seconds,
+      pieces: cut.video.map((p) => ({ take: p.take, in: p.in, recIn: p.recIn, recOut: p.recOut })),
+      pushIns: pushed,
+      handheld,
+      intro: intro ? { seconds: intro.seconds, overlap: intro.overlap ?? null, path: "Establishing (AI).mp4" } : null,
+      mix: "Audio/mix.wav",
+      grade: look ? "Loupe look.cube" : null,
+    },
     preview: { path: previewName, size: sizes[1] },
     files: files.map((f, i) => ({ path: f.path, size: sizes[i] })),
   };

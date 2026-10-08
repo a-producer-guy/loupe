@@ -9,6 +9,7 @@ import { mkdir, mkdtemp, readdir, rm, stat, statfs } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { FalClient } from "./ai/fal.js";
+import { runFinalLoop } from "./assembly/final.js";
 import { runAssemblyLoop, startCutIfReady } from "./assembly/job.js";
 import { loadConfig } from "./config.js";
 import { claimJob, connect, heartbeat, markDone, markFailed, markSkipped, releaseJobs, requeueStale, type Job } from "./jobs.js";
@@ -24,6 +25,7 @@ let stopping = false;
 // The cut loop, when FAL_KEY is set: stopped with the worker.
 const cuts = new AbortController();
 let cutLoop: Promise<void> | null = null;
+let finalLoop: Promise<void> | null = null;
 
 const log = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
 
@@ -163,9 +165,18 @@ async function main() {
   await mkdir(config.workDir, { recursive: true });
   // Leftovers from a previous run that was cut off.
   for (const entry of await readdir(config.workDir)) {
-    if (entry.startsWith("job-") || entry.startsWith("cut-")) await rm(path.join(config.workDir, entry), { recursive: true, force: true });
+    if (entry.startsWith("job-") || entry.startsWith("cut-") || entry.startsWith("final-")) await rm(path.join(config.workDir, entry), { recursive: true, force: true });
   }
   log(`Proxy worker ${workerId} started (${config.concurrency} at a time).`);
+  // Finals from the camera originals need no AI: always on.
+  const pause = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      cuts.signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
+    });
+  finalLoop = runFinalLoop({ sql, storage, tools: config.tools, workDir: config.workDir, workerId, signal: cuts.signal, log, sleep: pause }).catch((error) =>
+    log(`The finals loop stopped: ${error instanceof Error ? error.message : error}`),
+  );
   const falKey = process.env.FAL_KEY?.trim();
   if (falKey) {
     const sleep = (ms: number) =>
@@ -205,6 +216,7 @@ async function shutdown(signalName: string) {
   cuts.abort(new Error("Worker shutting down."));
   await Promise.allSettled([...running.values()].map((r) => r.done));
   await cutLoop?.catch(() => {});
+  await finalLoop?.catch(() => {});
   await releaseJobs(sql, ids, workerId).catch(() => {});
   await sql.end({ timeout: 5 });
   process.exit(0);
