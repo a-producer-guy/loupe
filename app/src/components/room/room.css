@@ -317,3 +317,32 @@
 .room .sheet .tracks{margin-bottom:4px}
 .room .sheet .exporting{display:flex; align-items:center; gap:12px; font-size:14px; color:var(--ink2); margin:10px 0 18px}
 .room .sheet .bad{color:var(--tally)}
+/* The share link's page and the scene's viewer notes. */
+.room .mark{display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:17px; letter-spacing:-.03em}
+.room .watch-grid{grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr)}
+.room .watch-strip{height:28px}
+.room .note-pin{position:absolute; top:-3px; width:3px; height:calc(100% + 6px); margin-left:-1px; border-radius:2px; background:var(--info); pointer-events:auto; z-index:2}
+.room .watch-notes{display:grid; gap:12px; align-content:start; padding-top:4px}
+.room .watch-notes h3{font-size:12px; font-weight:500; color:var(--ink3); margin:0}
+.room .note-form{display:grid; gap:8px; background:var(--surface); border-radius:var(--r-md); padding:12px; box-shadow:0 0 0 1px var(--hair), var(--lift-sm)}
+.room .note-form input, .room .note-form textarea{font:inherit; font-size:14px; border:0; background:var(--ground); border-radius:9px; padding:9px 11px; color:var(--ink); resize:vertical}
+.room .note-form input:focus-visible, .room .note-form textarea:focus-visible{outline:2px solid var(--ink); outline-offset:0}
+.room .note-send{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px; color:var(--ink3)}
+.room .note-send .textlink{margin-left:8px; font-size:12px}
+.room .note-list{list-style:none; margin:0; padding:0; display:grid; gap:4px}
+.room .note-list li{display:grid; grid-template-columns:48px minmax(0,1fr) auto; gap:10px; padding:10px 8px; border-radius:10px; font-size:13.5px; align-items:start}
+.room .note-list li:hover{background:rgba(255,255,255,.7)}
+.room .note-list .tc{font-size:12.5px; color:var(--info); text-align:left; padding-top:1px}
+.room .note-list b{font-weight:500; font-size:12.5px; color:var(--ink2)}
+.room .note-list p{margin:2px 0 0; color:var(--ink)}
+.room .note-list .acts{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+.room .note-list .acts button{font-size:12px; padding:4px 9px; border-radius:8px; background:var(--sunk); color:var(--ink)}
+.room .note-list .acts button:hover{background:var(--sunk2)}
+.room .note-list li.sent p{color:var(--ink3)}
+.room .fine{font-size:12.5px; color:var(--ink3); margin:0}
+.room .bad{color:var(--tally); font-size:13px; margin:0}
+@media (max-width:979px){ .room .watch-grid{grid-template-columns:minmax(0,1fr)} }
+.room .share-row{display:flex; gap:8px; margin:4px 0 10px}
+.room .share-row input{flex:1; min-width:0; font:inherit; font-size:13px; font-family:var(--mono); border:0; background:var(--ground); border-radius:10px; padding:9px 11px; color:var(--ink2)}
+.room .viewer-notes{display:grid; gap:6px; margin-top:6px}
+.room .viewer-notes h3{display:flex; justify-content:space-between; align-items:baseline; font-size:12px; font-weight:500; color:var(--ink3); margin:6px 4px 0}

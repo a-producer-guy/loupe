@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Loupe } from "@/components/loupe/loupe";
 import type { LineInTake, RoomCut, Shot } from "@/lib/footage/cut-types";
+import type { ViewerNote } from "@/lib/footage/share";
 
 // Screen 3 of the mockup, the suite: the cut on the left with its filmstrip, and the script on the right as the
 // editing surface. Each line carries its shot, the reason for it, and on hover the tools for that line; "Other takes"
@@ -73,9 +74,14 @@ export function Suite({
   onScope,
   onPick,
   onLead,
+  notes = [],
+  onNote,
   busy,
 }: {
   cut: RoomCut;
+  /** Notes viewers left on the share link, and what to do with one (pass it to Loupe, or put it aside). */
+  notes?: ViewerNote[];
+  onNote?: (id: number, action: "send" | "done") => void;
   /** The scene's name, until the cut has the script's own heading. */
   title: string;
   /** The scene's clip stills, for the mosaic while the first cut is made. */
@@ -275,6 +281,11 @@ export function Suite({
                 {still(s.take) ? <img src={still(s.take)!} alt="" /> : null}
               </button>
             ))}
+            {notes
+              .filter((n) => !n.sentAt && !n.doneAt)
+              .map((n) => (
+                <i key={n.id} className="note-pin" style={{ left: `${(n.at / Math.max(1, duration)) * 100}%` }} title={`${n.name}: ${n.note}`} />
+              ))}
             <div className="ph" style={{ left: `${(time / Math.max(1, duration)) * 100}%` }} />
           </div>
         </div>
@@ -290,6 +301,7 @@ export function Suite({
           <span>Line on top = reaction shot</span>
           <span>J K L, ← → and C for subtitles</span>
         </div>
+        {notes.length > 0 && <ViewerNotes notes={notes} busy={busy} onSeek={(s) => seek(s)} onNote={onNote} />}
       </div>
 
       <div className="scriptcol">
@@ -393,6 +405,54 @@ export function Suite({
           {result.dropped.length > 0 && <div className="act">Left out (missing from most takes): {result.dropped.map((d) => quote(d)).join(", ")}</div>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Notes from the share link: newest work first; passed-on and put-aside ones folded away. */
+function ViewerNotes({ notes, busy, onSeek, onNote }: { notes: ViewerNote[]; busy: boolean; onSeek: (s: number) => void; onNote?: (id: number, action: "send" | "done") => void }) {
+  const [all, setAll] = useState(false);
+  const open = notes.filter((n) => !n.sentAt && !n.doneAt).sort((a, b) => a.at - b.at);
+  const handled = notes.filter((n) => n.sentAt || n.doneAt);
+  return (
+    <div className="room-notes viewer-notes">
+      <h3>
+        <span>Notes from viewers{open.length ? ` · ${open.length} new` : ""}</span>
+        {handled.length > 0 && (
+          <button type="button" className="textlink" onClick={() => setAll(!all)}>
+            {all ? "Hide earlier" : `${handled.length} earlier`}
+          </button>
+        )}
+      </h3>
+      <ol className="note-list">
+        {[...open, ...(all ? handled : [])].map((n) => (
+          <li key={n.id} className={n.sentAt || n.doneAt ? "sent" : ""}>
+            <button type="button" className="tc" onClick={() => onSeek(n.at)}>
+              {tc(n.at)}
+            </button>
+            <div>
+              <b>{n.name}</b>
+              <p>{n.note}</p>
+            </div>
+            <div className="acts">
+              {n.sentAt ? (
+                <span className="fine">Sent to Loupe</span>
+              ) : n.doneAt ? (
+                <span className="fine">Done</span>
+              ) : (
+                <>
+                  <button type="button" disabled={busy} onClick={() => onNote?.(n.id, "send")}>
+                    Send to Loupe
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => onNote?.(n.id, "done")}>
+                    Done
+                  </button>
+                </>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

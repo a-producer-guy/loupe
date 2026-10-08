@@ -21,8 +21,9 @@ export async function proxy(request: NextRequest) {
   });
 
   const path = request.nextUrl.pathname;
-  // The landing page and sign-in are for everyone; every other page needs signing in.
-  const publicPage = path === "/" || path === "/login" || path.startsWith("/auth/");
+  // The landing page, sign-in and share links (/watch/<secret>, which check their own secret) are for everyone;
+  // every other page needs signing in.
+  const publicPage = path === "/" || path === "/login" || path.startsWith("/auth/") || path.startsWith("/watch/");
   // Local testing only; see currentEmail() in lib/auth.ts.
   const devSignIn = process.env.NODE_ENV === "development" && Boolean(process.env.DEV_SIGN_IN_AS);
   const refreshed: Cookie[] = [];

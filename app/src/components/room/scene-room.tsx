@@ -12,6 +12,8 @@ import type { ShootDetail } from "@/lib/footage/status";
 import { usePolling, useShootProgress } from "@/lib/hooks";
 import { CommandBar, type Dept } from "./command-bar";
 import { ExportSheet } from "./export-sheet";
+import { ShareSheet } from "./share-sheet";
+import type { ViewerNote } from "@/lib/footage/share";
 import { Ingest } from "./ingest";
 import { scopeWords, Suite, type Scope } from "./suite";
 import "./room.css";
@@ -31,6 +33,15 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
   const [scope, setScope] = useState<Scope>({ kind: "scene" });
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [share, refreshShare] = usePolling<{ path: string | null; notes: ViewerNote[] }>(`/api/shoots/${initial.id}/share`, "share", { path: null, notes: [] }, 10_000);
+  const shareAction = async (body: object) => {
+    setBusy(true);
+    const response = await fetch(`/api/shoots/${shoot.id}/share`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    setBusy(false);
+    if (!response?.ok) toast({ tone: "bad", title: ((await response?.json().catch(() => null)) as { error?: string } | null)?.error ?? "Couldn't do that just now. Try again in a moment." });
+    await Promise.all([refreshShare(), refreshCut()]);
+  };
 
   // This tab's live progress for clips still uploading, by their path in the scene.
   const inFlight = useMemo(() => {
@@ -100,6 +111,11 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
                 </button>
               )}
               {done && (
+                <button type="button" className="btn soft" onClick={() => (setSharing(true), void refreshShare())}>
+                  {share.path ? "Shared" : "Share"}
+                </button>
+              )}
+              {done && (
                 <button type="button" className="btn" onClick={() => setExporting(true)}>
                   {downloading ? (
                     <>
@@ -126,6 +142,8 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
                 busy={busy}
                 onPick={(line, take) => void post({ action: "pick", line, take })}
                 onLead={(role) => void post({ action: "lead", role })}
+                notes={share.notes}
+                onNote={(id, action) => void shareAction({ action, id })}
               />
             )}
           </main>
@@ -145,6 +163,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
               }}
             />
           )}
+          {sharing && <ShareSheet path={share.path} busy={busy} onShare={() => void shareAction({ action: "on" })} onStop={() => void shareAction({ action: "off" })} onClose={() => setSharing(false)} />}
           {exporting && done && (
             <ExportSheet result={done} state={download.state} supported={download.supported} onStart={download.start} onClose={() => setExporting(false)} />
           )}
