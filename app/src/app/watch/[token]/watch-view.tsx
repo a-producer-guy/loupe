@@ -111,7 +111,9 @@ export function WatchView({ token, initial }: { token: string; initial: WatchSta
                 preload="auto"
                 onTimeUpdate={() => setTime(video.current?.currentTime ?? 0)}
                 onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
+                // A note lands where the picture stops: on a pause, or wherever it's scrubbed to (Guy, Oct 8).
+                onPause={() => (setPlaying(false), setPinned(video.current?.currentTime ?? time))}
+                onSeeked={() => setPinned(video.current?.currentTime ?? time)}
                 onClick={toggle}
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#121210" }}
               />
@@ -181,7 +183,7 @@ export function WatchView({ token, initial }: { token: string; initial: WatchSta
                 onChange={(e) => setNote(e.target.value)}
                 onFocus={() => {
                   video.current?.pause();
-                  if (pinned === null) setPinned(time);
+                  setPinned(video.current?.currentTime ?? time);
                 }}
                 placeholder={`Note at ${tc(at)}…`}
                 maxLength={500}
@@ -192,11 +194,7 @@ export function WatchView({ token, initial }: { token: string; initial: WatchSta
               <div className="note-send">
                 <span>
                   At <b>{tc(at)}</b>
-                  {pinned !== null && (
-                    <button type="button" className="textlink" onClick={() => setPinned(null)}>
-                      follow the playhead
-                    </button>
-                  )}
+                  <span className="fine"> · pause or scrub to move it</span>
                 </span>
                 <button type="submit" className="btn" disabled={!note.trim() || !who.trim() || sending}>
                   {sending ? "Sending…" : "Send note"}
