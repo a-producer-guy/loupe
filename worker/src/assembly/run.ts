@@ -126,6 +126,8 @@ export type AssemblyResult = {
     mix: string;
     grade: string | null;
   };
+  /** Where this version's package sits in the scene's folder ("Loupe Cut/v12"; before Oct 8, "Loupe Cut" itself). */
+  folder?: string;
   /** The package, relative to the scene's "Loupe Cut" folder. */
   preview: { path: string; size: number };
   files: { path: string; size: number }[];

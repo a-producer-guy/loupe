@@ -15,6 +15,9 @@ export const CUT_STEPS = [
 
 export const CUT_FOLDER = "Loupe Cut";
 
+/** Where a version's package is: its own folder, or (versions from before Oct 8) the scene's "Loupe Cut". */
+export const folderOf = (result: { folder?: string }) => result.folder ?? CUT_FOLDER;
+
 export type Shot = {
   n: number;
   at: number;
@@ -68,6 +71,10 @@ export type CutResult = {
   performances?: Record<string, string>;
   /** How to build this version again from the camera originals (versions from Oct 8 on): the final file needs it. */
   render?: { seconds: number };
+  /** Where this version's package sits in the scene's folder ("Loupe Cut/v12"; older versions: "Loupe Cut"). */
+  folder?: string;
+  /** A version made by going back to an earlier one: which. */
+  restoredFrom?: number;
   preview: { path: string; size: number };
   files: { path: string; size: number }[];
 };
@@ -101,6 +108,8 @@ export type Direction = {
   extras?: { establishing?: boolean; ambience?: boolean; score?: boolean };
   /** A request made while Loupe was busy: its notes are read against the version made before it. */
   queued?: boolean;
+  /** Going back to an earlier version that has to be made again (one from before versions were kept whole). */
+  restoredFrom?: number;
 };
 
 export type CutView = {
@@ -137,4 +146,54 @@ export type RoomCut = CutState & {
   /** Each take's still and playable preview, by take label, for the filmstrip and Other takes. */
   takes: Record<string, { still: string | null; preview: string | null; seconds: number | null }>;
   heading: string | null;
+  /** The version before's preview, when it's kept: for flipping between the two. */
+  previous: string | null;
+};
+
+/** One change in a version, in plain words, that can be taken out on its own. */
+export type Change = { key: string; label: string };
+
+const cap = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
+/** Someone's words, quoted and kept short. */
+export const short = (text: string, n = 32) => {
+  const w = text.split(/\s+/);
+  return `“${w.length > 6 || text.length > n ? `${text.slice(0, n).replace(/\s+\S*$/, "")}…` : text}”`;
+};
+
+/** The changes a version carries, each in plain words, keyed so one can be taken out. */
+export function changesOf(d: Direction | null, leadRole: string | null): Change[] {
+  const out: Change[] = [];
+  if (!d && !leadRole) return out;
+  if (leadRole) out.push({ key: "lead", label: `Whose scene: ${cap(leadRole)}` });
+  if (d?.look) out.push({ key: "look", label: `Look: ${short(d.look)}` });
+  if (d?.pace) out.push({ key: "pace", label: d.pace === "tighter" ? "Tighter" : "Looser" });
+  if (d?.reactions) out.push({ key: "reactions", label: d.reactions === "more" ? "More reactions" : "Fewer reactions" });
+  if (d?.clean === "standard") out.push({ key: "clean", label: "Voices as recorded" });
+  if (d?.music) out.push({ key: "music", label: `Score: ${short(d.music)}` });
+  else if (d?.extras?.score) out.push({ key: "extras.score", label: "Score" });
+  if (d?.extras?.ambience) out.push({ key: "extras.ambience", label: "Room ambience" });
+  if (d?.extras?.establishing) out.push({ key: "extras.establishing", label: "Establishing shot" });
+  for (const p of d?.picks ?? []) out.push({ key: `pick:${p.line}`, label: `Take ${p.take} for ${short(p.line, 24)}` });
+  return out;
+}
+
+/** What one version changed from another, in plain words ("Tighter · No score"), or null when nothing did. */
+export function whatChanged(before: { direction: unknown; leadRole: string | null }, after: { direction: unknown; leadRole: string | null }): string | null {
+  const was = new Set(changesOf(before.direction as Direction | null, before.leadRole).map((c) => c.label));
+  const now = changesOf(after.direction as Direction | null, after.leadRole);
+  const added = now.filter((c) => !was.has(c.label)).map((c) => c.label);
+  const gone = [...was].filter((l) => !now.some((c) => c.label === l)).map((l) => `No ${l.charAt(0).toLowerCase()}${l.slice(1)}`);
+  return [...added, ...gone].join(" · ") || null;
+}
+
+/** A version of the scene's cut, for the version list. */
+export type VersionView = {
+  id: number;
+  n: number;
+  label: string;
+  finishedAt: string | null;
+  current: boolean;
+  /** Its own preview is kept (versions from Oct 8 on): going back is instant, and it can be watched. */
+  whole: boolean;
+  preview: string | null;
 };

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { cuts, projects, shareLinks, shareNotes } from "@/lib/db/schema";
-import { CUT_FOLDER, type CutResult } from "@/lib/footage/cut-types";
+import { folderOf, type CutResult } from "@/lib/footage/cut-types";
 
 // Share links (Guy, Oct 7): a secret address anyone can open to watch a scene's newest cut and leave notes pinned to
 // moments, without being able to change anything. Notes go to the scene's people, who pass them on to Loupe (or put
@@ -111,7 +111,7 @@ export async function watchState(db: Db, token: string, sign: (key: string, vers
             id: done.id,
             title: result.title,
             seconds: result.seconds,
-            preview: await sign(`${link.prefix}/${CUT_FOLDER}/${result.preview.path}`, `cut-${done.id}`, "mp4"),
+            preview: await sign(`${link.prefix}/${folderOf(result)}/${result.preview.path}`, `cut-${done.id}`, "mp4"),
             subs: result.subs,
             shots: result.shots.map((s) => ({ at: s.at, seconds: s.seconds, who: s.who, kind: s.kind })),
             lead: result.client,

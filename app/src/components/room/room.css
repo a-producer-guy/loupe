@@ -357,3 +357,30 @@
 .room a.btn{text-decoration:none}
 .room .sheet-k{font-size:12px; font-weight:500; color:var(--ink3); margin:4px 0 0}
 .room .final-box .topaz{display:grid; gap:8px; justify-items:start; width:100%; padding-top:10px; border-top:1px solid var(--hair)}
+.room .chip.compare{position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:2}
+
+/* Versions: the "Version N" menu in the top bar */
+.room .vers{position:relative; flex:none}
+.room .vers-btn{display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--ink2); padding:5px 10px; border-radius:999px; box-shadow:0 0 0 1px var(--hair2); background:var(--surface); white-space:nowrap}
+.room .vers-btn:hover, .room .vers-btn[aria-expanded="true"]{color:var(--ink); box-shadow:0 0 0 1px var(--ink3)}
+.room .vers-pop{position:absolute; top:calc(100% + 8px); left:0; z-index:40; width:min(400px, calc(100vw - 32px)); max-height:min(70vh, 620px); overflow:auto; background:var(--surface); border-radius:16px; padding:6px; box-shadow:0 0 0 1px var(--hair), var(--lift); animation:rise .2s ease-out}
+.room .vers-pop .smk{font-size:11.5px; color:var(--ink3); padding:8px 10px 6px}
+.room .vers-pop > .fine{padding:10px}
+.room .vers-in{border-bottom:1px solid var(--hair); padding-bottom:8px; margin-bottom:2px}
+.room .vers-chips{display:flex; flex-wrap:wrap; gap:6px; padding:0 8px 4px}
+.room .vchip{display:inline-flex; align-items:center; gap:4px; font-size:12.5px; background:var(--ground); color:var(--ink); padding:4px 4px 4px 10px; border-radius:999px; max-width:100%}
+.room .vchip button{width:20px; height:20px; border-radius:50%; color:var(--ink3); font-size:14px; line-height:1}
+.room .vchip button:hover{background:var(--hair2); color:var(--ink)}
+.room .vers-list{list-style:none; margin:0; padding:0}
+.room .vers-row{display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:10px; align-items:baseline; width:100%; text-align:left; padding:9px 10px; border-radius:10px; font-size:13.5px}
+.room .vers-row:hover, .room .vers-row:focus-visible, .room .vers-row[aria-expanded="true"]{background:var(--ground); outline:none}
+.room .vers-n{font-family:var(--mono); font-size:12px; color:var(--ink3); font-variant-numeric:tabular-nums}
+.room .vers-l{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.room .vers-t{font-size:12px; color:var(--ink3); white-space:nowrap}
+.room .vers-list li.now .vers-n, .room .vers-list li.now .vers-t{color:var(--ink); font-weight:500}
+.room .vers-x{display:grid; gap:8px; justify-items:start; padding:4px 10px 12px 42px}
+.room .vers-x video{width:100%; aspect-ratio:16/9; border-radius:10px; background:#121210}
+.room .vers-x .fine{margin:0}
+.room .vers-tip{padding:8px 10px 6px; margin:4px 0 0; border-top:1px solid var(--hair)}
+.room .reply button.soft{color:#fff; text-decoration:none; background:rgba(255,255,255,.14); padding:1px 9px; border-radius:999px}
+.room .reply button.soft:hover{background:rgba(255,255,255,.24)}
