@@ -34,13 +34,15 @@ export function Savings() {
   const save = Math.max(0, today - best.cost - polishCost);
   const hoursBack = Math.round(scenes * hours * (polish ? 2 / 3 : 1));
   const daysBack = Math.round((hoursBack * 12) / 8);
+  // About 230 working days in a year: past that, it's more than one person's time.
+  const editors = daysBack / 230;
 
   const slider = (id: string, label: string, value: string, input: React.InputHTMLAttributes<HTMLInputElement>) => (
     <div>
       <label htmlFor={id} className="mb-2.5 flex items-baseline justify-between gap-3 text-[14px] text-muted">
         {label} <b className="text-[22px] font-medium tracking-[-0.02em] text-text tabular-nums">{value}</b>
       </label>
-      <input id={id} type="range" className="w-full accent-text" {...input} />
+      <input id={id} type="range" className="w-full rounded-full accent-text outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-text/25" {...input} />
     </div>
   );
 
@@ -74,16 +76,18 @@ export function Savings() {
         </p>
       </div>
       <div className="grid content-start gap-5 bg-text p-7 text-white" aria-live="polite">
-        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
+        <div className="grid gap-5">
           <div>
             <p className="text-[13px] text-white/55">Back in your pocket</p>
-            <p className="text-[clamp(44px,5.2vw,68px)] font-light leading-none tracking-[-0.05em] tabular-nums">{money(save * 12)}</p>
+            <p className="whitespace-nowrap text-[clamp(44px,5.2vw,68px)] font-light leading-none tracking-[-0.05em] tabular-nums">{money(save * 12)}</p>
             <p className="mt-1 text-[13px] text-white/60">a year · {money(save)} a month</p>
           </div>
           <div>
             <p className="text-[13px] text-white/55">Back on your calendar</p>
-            <p className="text-[clamp(44px,5.2vw,68px)] font-light leading-none tracking-[-0.05em] tabular-nums">{daysBack.toLocaleString("en-US")}</p>
-            <p className="mt-1 text-[13px] text-white/60">working days a year · {hoursBack} h a month</p>
+            <p className="whitespace-nowrap text-[clamp(44px,5.2vw,68px)] font-light leading-none tracking-[-0.05em] tabular-nums">{daysBack.toLocaleString("en-US")}</p>
+            <p className="mt-1 text-[13px] text-white/60">
+              working days a year · {editors < 1 ? `${hoursBack.toLocaleString("en-US")} h a month` : editors < 1.5 ? "a full-time editor’s worth" : `${Math.round(editors)} full-time editors’ worth`}
+            </p>
           </div>
         </div>
         <div className="grid gap-2 border-t border-white/15 pt-4 text-[14px]">
