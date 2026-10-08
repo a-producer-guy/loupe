@@ -15,6 +15,13 @@
       "when": 1791414383951,
       "tag": "0001_cuts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791426341030,
+      "tag": "0002_share_finals_queue",
+      "breakpoints": true
     }
   ]
 }

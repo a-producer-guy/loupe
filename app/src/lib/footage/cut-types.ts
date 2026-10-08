@@ -55,6 +55,8 @@ export type CutResult = {
   camera?: "handheld" | "steady";
   takes: { take: string; path: string; found: TakeSetup | "insert" | null; setup: TakeSetup | null; used: boolean }[];
   lines: { who: string; text: string }[];
+  /** Subtitles as heard: each line's words and when they're heard in the preview (cuts made from Oct 7 evening on). */
+  subs?: { line: number; s: number; e: number; words: { t: string; s: number }[] }[];
   /** Every line in every take ("Other takes"): per take, its score and each line, in `lines` order (null: not in it). */
   lineTakes?: Record<string, { q: number | null; why: string[]; complete: number | null; performance: number | null; lines: (LineInTake | null)[] }>;
   dropped: string[];
@@ -80,6 +82,8 @@ export type Direction = {
   pace?: "tighter" | "looser" | null;
   clean?: "isolate" | "standard" | null;
   extras?: { establishing?: boolean; ambience?: boolean; score?: boolean };
+  /** A request made while Loupe was busy: its notes are read against the version made before it. */
+  queued?: boolean;
 };
 
 export type CutView = {
@@ -100,6 +104,9 @@ export type CutView = {
 export type CutState = {
   latest: CutView | null;
   done: CutView | null;
+  /** The version being made, and the one waiting behind it (a queued request). */
+  working: CutView | null;
+  waiting: CutView | null;
   versions: number;
   /** A link to the finished version's preview, for the player. */
   preview: string | null;

@@ -343,7 +343,102 @@ export const cuts = pgTable(
     check("loupe_cuts_status_valid", sql`${t.status} in ('waiting', 'working', 'done', 'failed')`),
     index("loupe_cuts_project_idx").on(t.projectId, t.id),
     index("loupe_cuts_queue_idx").on(t.status, t.id),
-    uniqueIndex("loupe_cuts_one_at_a_time_idx").on(t.projectId).where(sql`${t.status} in ('waiting', 'working')`),
+    // One version being made per scene, and one waiting behind it (Guy, Oct 7: requests queue, nothing is turned away).
+    uniqueIndex("loupe_cuts_one_working_idx").on(t.projectId).where(sql`${t.status} = 'working'`),
+    uniqueIndex("loupe_cuts_one_waiting_idx").on(t.projectId).where(sql`${t.status} = 'waiting'`),
+    appAccess(),
+  ],
+).enableRLS();
+
+// ─── Sharing and finals (Guy, Oct 7) ──────────────────────────────────────────
+
+/**
+ * A scene's share link: a secret address anyone can open to watch the newest cut and leave notes pinned to moments,
+ * without being able to change anything. One working link per scene; turned off, it stops working for good.
+ */
+export const shareLinks = pgTable(
+  "loupe_share_links",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => projects.id),
+    // The secret part of the address: 32 random bytes, base64url. Knowing it is what lets someone watch.
+    token: text("token").notNull().unique(),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    turnedOffAt: timestamp("turned_off_at", { withTimezone: true }),
+    turnedOffBy: text("turned_off_by"),
+  },
+  (t) => [uniqueIndex("loupe_share_links_one_per_scene_idx").on(t.projectId).where(sql`${t.turnedOffAt} is null`), appAccess()],
+).enableRLS();
+
+/**
+ * A note left on a share link: who (the name they typed), where in the cut, and what. It goes to the scene's people,
+ * never straight to Loupe; one of them can pass it on (sentAt) or put it aside (doneAt).
+ */
+export const shareNotes = pgTable(
+  "loupe_share_notes",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    linkId: bigint("link_id", { mode: "number" })
+      .notNull()
+      .references(() => shareLinks.id),
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => projects.id),
+    // The version they were watching.
+    cutId: bigint("cut_id", { mode: "number" }).references(() => cuts.id),
+    name: text("name").notNull(),
+    // Seconds into that version.
+    at: real("at").notNull(),
+    note: text("note").notNull(),
+    createdAt: createdAt(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [index("loupe_share_notes_project_idx").on(t.projectId, t.id), index("loupe_share_notes_link_idx").on(t.linkId), appAccess()],
+).enableRLS();
+
+export const FINAL_KINDS = ["original", "topaz"] as const;
+export type FinalKind = (typeof FINAL_KINDS)[number];
+
+/**
+ * A finished file of one version of a cut: rendered from the camera originals at full resolution ("original"), or
+ * that made 4K with Topaz on fal ("topaz"). The worker makes it; it goes in the scene's "Loupe Cut/Final" folder.
+ */
+export const finals = pgTable(
+  "loupe_finals",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    cutId: bigint("cut_id", { mode: "number" })
+      .notNull()
+      .references(() => cuts.id),
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => projects.id),
+    kind: text("kind", { enum: FINAL_KINDS }).notNull(),
+    status: text("status", { enum: CUT_STATUSES }).notNull().default("waiting"),
+    progress: real("progress"),
+    attempts: integer("attempts").notNull().default(0),
+    lockedBy: text("locked_by"),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    error: text("error"),
+    storageKey: text("storage_key"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    width: integer("width"),
+    height: integer("height"),
+    requestedBy: text("requested_by"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("loupe_finals_kind_valid", sql`${t.kind} in ('original', 'topaz')`),
+    check("loupe_finals_status_valid", sql`${t.status} in ('waiting', 'working', 'done', 'failed')`),
+    index("loupe_finals_cut_idx").on(t.cutId, t.kind),
+    index("loupe_finals_queue_idx").on(t.status, t.id),
+    uniqueIndex("loupe_finals_one_at_a_time_idx").on(t.cutId, t.kind).where(sql`${t.status} in ('waiting', 'working')`),
     appAccess(),
   ],
 ).enableRLS();

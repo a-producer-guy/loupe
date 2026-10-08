@@ -55,6 +55,8 @@ export async function claimAssembly(sql: Sql, workerId: string): Promise<Assembl
      where c.id = (
        select w.id from loupe_cuts w join loupe_projects p on p.id = w.project_id
         where w.status = 'waiting'
+          -- One version at a time per scene: a queued request waits for the one being made.
+          and not exists (select 1 from loupe_cuts x where x.project_id = w.project_id and x.status = 'working')
         order by (select max(x.started_at) from loupe_cuts x join loupe_projects q on q.id = x.project_id
                    where q.account_id = p.account_id and x.id <> w.id) asc nulls first, w.id
         limit 1
@@ -95,7 +97,49 @@ export async function saveDirection(sql: Sql, id: number, workerId: string, dire
   await sql`update loupe_cuts set direction = ${sql.json(direction as never)} where id = ${id} and locked_by = ${workerId}`;
 }
 
-/** The shoot's last finished assembly before this one: the cut a note is about. */
+/** The scene's last finished version before this one, as made and as directed: what a queued request builds on. */
+export async function lastDoneRow(sql: Sql, projectId: number, before: number) {
+  const [row] = await sql`
+    select script_id, lead_role, coverage, direction from loupe_cuts
+     where project_id = ${projectId} and id < ${before} and status = 'done' and result is not null
+     order by id desc limit 1`;
+  return row
+    ? {
+        scriptId: row.script_id == null ? null : Number(row.script_id),
+        leadRole: row.lead_role == null ? null : String(row.lead_role),
+        coverage: (row.coverage as AssemblyJob["coverage"]) ?? null,
+        direction: parseDirection(row.direction),
+      }
+    : null;
+}
+
+/**
+ * A request made while Loupe was busy (Guy, Oct 7): it was queued in words, and is only now read, against the
+ * version that was being made when it came in (now finished): that one's direction, its script and setups, plus
+ * the queued words as the note to read.
+ */
+export async function unqueue(sql: Sql, job: AssemblyJob, workerId: string): Promise<AssemblyJob> {
+  const raw = (job.direction && typeof job.direction === "object" ? job.direction : {}) as { queued?: boolean; notes?: { note: string; reply: string | null; at: string }[] };
+  if (!raw.queued) return job;
+  const before = await lastDoneRow(sql, job.project_id, job.id);
+  const words = (raw.notes ?? []).filter((n) => n.reply === null).map((n) => n.note).join(" Then: ");
+  const base = before?.direction ?? {};
+  const direction = { ...base, notes: [...(base.notes ?? []).filter((n) => n.reply !== null), ...(words ? [{ note: words, reply: null, at: new Date().toISOString() }] : [])] };
+  const next = {
+    ...job,
+    script_id: job.script_id ?? before?.scriptId ?? null,
+    lead_role: job.lead_role ?? before?.leadRole ?? null,
+    coverage: job.coverage ?? before?.coverage ?? null,
+    direction,
+  };
+  await sql`
+    update loupe_cuts set direction = ${sql.json(direction as never)}, script_id = ${next.script_id}, lead_role = ${next.lead_role},
+           coverage = ${next.coverage ? sql.json(next.coverage as never) : null}
+     where id = ${job.id} and locked_by = ${workerId}`;
+  return next;
+}
+
+/** The scene's last finished version before this one: the cut a note is about. */
 export async function lastDone(sql: Sql, projectId: number, before: number): Promise<AssemblyResult | null> {
   const [row] = await sql`
     select result from loupe_cuts
@@ -342,12 +386,12 @@ export async function runAssemblyLoop(ctx: AssemblyContext & { sleep: (ms: numbe
         const requeued = await requeueStaleAssemblies(ctx.sql);
         if (requeued) ctx.log(`Put ${requeued} interrupted cut${requeued === 1 ? "" : "s"} back in the queue.`);
       }
-      const job = await claimAssembly(ctx.sql, ctx.workerId);
-      if (!job) {
+      const claimed = await claimAssembly(ctx.sql, ctx.workerId);
+      if (!claimed) {
         await ctx.sleep(10_000);
         continue;
       }
-      await runAssemblyJob(ctx, job);
+      await runAssemblyJob(ctx, await unqueue(ctx.sql, claimed, ctx.workerId));
     } catch (error) {
       // Before the database has the cut tables (migration 0001), wait quietly.
       if ((error as { code?: string }).code === "42P01") {

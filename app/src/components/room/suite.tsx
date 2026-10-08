@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Loupe } from "@/components/loupe/loupe";
 import type { LineInTake, RoomCut, Shot } from "@/lib/footage/cut-types";
+import type { ViewerNote } from "@/lib/footage/share";
 
-// Screen 3 of the mockup, the suite: the picture on the left (the cut, or one line from one take while you audition),
-// the filmstrip of shots under it, and the script on the right as the editing surface. Each line carries its shot,
-// the reason for it, and on hover the tools for that line; "Other takes" fans out every take of the line, and plays
-// just that line in each (Guy, Oct 6).
+// Screen 3 of the mockup, the suite: the cut on the left with its filmstrip, and the script on the right as the
+// editing surface. Each line carries its shot, the reason for it, and on hover the tools for that line; "Other takes"
+// fans out every take of the line, each playing just that line in its own card (Guy, Oct 7), while the picture stays
+// on the cut. Subtitles follow the voices word by word, and the script follows the playback.
 
 export type Scope = { kind: "scene" } | { kind: "line"; line: number } | { kind: "from"; line: number } | { kind: "who"; who: string };
 
@@ -37,7 +38,32 @@ export const scopeWords = (scope: Scope, lines: { who: string; text: string }[])
 export const inScope = (scope: Scope, j: number, who: string) =>
   scope.kind === "scene" || (scope.kind === "line" ? j === scope.line : scope.kind === "from" ? j >= scope.line : who === scope.who);
 
-type Audition = { line: number; queue: string[]; take: string; multi: boolean };
+// Subtitles on or off, remembered on this computer.
+const SUBS_KEY = "loupe.subtitles";
+const subsListeners = new Set<() => void>();
+const readSubs = () => {
+  try {
+    return localStorage.getItem(SUBS_KEY) !== "off";
+  } catch {
+    return true;
+  }
+};
+const writeSubs = (on: boolean) => {
+  try {
+    localStorage.setItem(SUBS_KEY, on ? "on" : "off");
+  } catch {
+    // Private window: just for now.
+  }
+  subsListeners.forEach((l) => l());
+};
+function useSubtitles(): [boolean, (on: boolean) => void] {
+  const on = useSyncExternalStore(
+    (l) => (subsListeners.add(l), () => subsListeners.delete(l)),
+    readSubs,
+    () => true,
+  );
+  return [on, writeSubs];
+}
 
 export function Suite({
   cut,
@@ -48,9 +74,14 @@ export function Suite({
   onScope,
   onPick,
   onLead,
+  notes = [],
+  onNote,
   busy,
 }: {
   cut: RoomCut;
+  /** Notes viewers left on the share link, and what to do with one (pass it to Loupe, or put it aside). */
+  notes?: ViewerNote[];
+  onNote?: (id: number, action: "send" | "done") => void;
   /** The scene's name, until the cut has the script's own heading. */
   title: string;
   /** The scene's clip stills, for the mosaic while the first cut is made. */
@@ -65,11 +96,11 @@ export function Suite({
   const result = cut.done?.result ?? null;
   const working = cut.latest && (cut.latest.status === "waiting" || cut.latest.status === "working");
   const video = useRef<HTMLVideoElement>(null);
+  const page = useRef<HTMLDivElement>(null);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tray, setTray] = useState<number | null>(null);
-  const [aud, setAud] = useState<Audition | null>(null);
-  const resume = useRef(0);
+  const [subsOn, setSubsOn] = useSubtitles();
 
   const lines = useMemo(() => result?.lines ?? [], [result]);
   const shots = useMemo(() => (result?.shots ?? []).filter((s) => s.kind !== "establishing" || s.seconds > 0), [result]);
@@ -83,63 +114,22 @@ export function Suite({
   const duration = result?.seconds ?? 0;
   const current = shots.findIndex((s) => time >= s.at && time < s.at + s.seconds);
   const shot = current >= 0 ? shots[current] : null;
-  const activeLine = shot ? lineOf(shot) : -1;
+  // The line being heard (cuts from Oct 7 evening know it word by word); before that, the shot's line.
+  const sub = result?.subs?.find((s) => time >= s.s - 0.15 && time <= s.e + 0.35) ?? null;
+  const activeLine = result?.subs ? (sub?.line ?? -1) : shot ? lineOf(shot) : -1;
   const lead = result?.client ?? "";
   const whoClass = (who: string) => (who === lead ? "who-lead" : "who-other");
   const still = (take: string) => cut.takes[take]?.still ?? null;
   const setupOf = (take: string) => result?.takes.find((t) => t.take === take)?.setup ?? null;
 
-  // The cut's own preview, unless a line is being auditioned (then that take's preview, at that line).
-  const auditionTake = aud ? cut.takes[aud.take] : null;
-  const auditionLine: LineInTake | null = aud && result?.lineTakes ? (result.lineTakes[aud.take]?.lines[aud.line] ?? null) : null;
-  const source = aud ? (auditionTake?.preview ?? null) : cut.preview;
-
+  // The script follows the playback: the line being heard stays in view.
   useEffect(() => {
-    const v = video.current;
-    if (!v || !aud || !auditionLine) return;
-    const start = () => {
-      v.currentTime = Math.max(0, auditionLine.s - 0.25);
-      void v.play().catch(() => {});
-    };
-    if (v.readyState >= 1) start();
-    else v.addEventListener("loadedmetadata", start, { once: true });
-  }, [aud, auditionLine]);
-
-  const stopAudition = useCallback(() => {
-    setAud(null);
-    // Back to the cut, where it was.
-    requestAnimationFrame(() => {
-      const v = video.current;
-      if (!v) return;
-      const back = () => (v.currentTime = resume.current);
-      if (v.readyState >= 1) back();
-      else v.addEventListener("loadedmetadata", back, { once: true });
-    });
-  }, []);
-
-  const audition = (line: number, takes: string[]) => {
-    if (!takes.length) return;
-    if (!aud) resume.current = video.current?.currentTime ?? 0;
-    video.current?.pause();
-    setAud({ line, queue: takes.slice(1), take: takes[0], multi: takes.length > 1 });
-  };
-
-  const onTime = () => {
-    const v = video.current;
-    if (!v) return;
-    if (aud && auditionLine) {
-      if (v.currentTime >= auditionLine.e + 0.3) {
-        v.pause();
-        if (aud.queue.length) setTimeout(() => setAud((a) => (a ? { ...a, take: a.queue[0], queue: a.queue.slice(1) } : a)), 450);
-        else if (!aud.multi) setTimeout(stopAudition, 300);
-      }
-      return;
-    }
-    setTime(v.currentTime);
-  };
+    if (!playing || activeLine < 0) return;
+    const beat = page.current?.querySelector<HTMLElement>(`.beat[data-li="${activeLine}"]`);
+    beat?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [activeLine, playing]);
 
   const seek = (seconds: number) => {
-    if (aud) stopAudition();
     const v = video.current;
     if (v) v.currentTime = Math.max(0, Math.min(duration - 0.05, seconds));
     setTime(seconds);
@@ -151,7 +141,7 @@ export function Suite({
     else v.pause();
   };
 
-  // J K L and the arrows, like an editing room (not while typing a note).
+  // J K L and the arrows, like an editing room, and C for subtitles (not while typing a note).
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -163,13 +153,13 @@ export function Suite({
         toggle();
       } else if (e.key === "l") void v.play().catch(() => {});
       else if (e.key === "j") seek(v.currentTime - 2);
+      else if (e.key === "c") setSubsOn(!subsOn);
       else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
         e.preventDefault();
         const k = Math.max(0, Math.min(shots.length - 1, (current < 0 ? 0 : current) + (e.key === "ArrowRight" ? 1 : -1)));
         if (shots[k]) seek(shots[k].at + 0.01);
       } else if (e.key === "Escape") {
-        if (aud) stopAudition();
-        else if (tray !== null) setTray(null);
+        if (tray !== null) setTray(null);
         else if (scope.kind !== "scene") onScope({ kind: "scene" });
       }
     };
@@ -182,7 +172,7 @@ export function Suite({
     const who = lines[j]?.who;
     return Object.entries(result?.lineTakes ?? {})
       .filter(([take, x]) => x.lines[j] && setupOf(take)?.who === who)
-      .sort((a, b) => (b[1].lines[j]!.match - a[1].lines[j]!.match) || ((b[1].q ?? 0) - (a[1].q ?? 0)))
+      .sort((a, b) => b[1].lines[j]!.match - a[1].lines[j]!.match || (b[1].q ?? 0) - (a[1].q ?? 0))
       .map(([take]) => take);
   };
   const shotsByLine = useMemo(() => {
@@ -199,89 +189,80 @@ export function Suite({
 
   if (!result) return <Cutting cut={cut} stills={stills} title={title} />;
 
+  const subtitle = !subsOn ? null : sub ? (
+    <div className="sub">
+      {sub.words.map((w, i) => (
+        <span key={i} className={`w${time >= w.s ? " said" : ""}`}>
+          {w.t}{" "}
+        </span>
+      ))}
+    </div>
+  ) : !result.subs && shot && shot.kind !== "establishing" ? (
+    <div className="sub">{shot.line}</div>
+  ) : null;
+
   return (
     <div className="suite">
       <div className="stage">
-        <div className={`picture${playing ? "" : " paused"}${aud ? " auditioning" : ""}`}>
-          {source ? (
+        <div className={`picture${playing ? "" : " paused"}`}>
+          {cut.preview ? (
             <video
-              key={source}
               ref={video}
-              src={source}
+              src={cut.preview}
               poster={still(shots[0]?.take ?? "") ?? undefined}
               playsInline
               preload="auto"
-              onTimeUpdate={onTime}
+              onTimeUpdate={() => setTime(video.current?.currentTime ?? 0)}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
-              onClick={aud ? undefined : toggle}
+              onClick={toggle}
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#121210" }}
             />
           ) : null}
-          {!aud && shot && shot.kind !== "establishing" && <div className="sub">{shot.line}</div>}
-          {aud && auditionLine && <div className="sub">{auditionLine.said}</div>}
-          {!aud && (
-            <button type="button" className="pp" aria-label={playing ? "Pause" : "Play"} onClick={toggle}>
-              <span>
-                {playing ? (
-                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                    <path d="M5 3h3v12H5zM10 3h3v12h-3z" fill="#161614" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                    <path d="M5 2.5v13l11-6.5z" fill="#161614" />
-                  </svg>
-                )}
-              </span>
-            </button>
-          )}
-          {!aud && shot && shot.kind !== "establishing" && (
-            <div className="pic-ctx">
+          {subtitle}
+          <button type="button" className="pp" aria-label={playing ? "Pause" : "Play"} onClick={toggle}>
+            <span>
+              {playing ? (
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <path d="M5 3h3v12H5zM10 3h3v12h-3z" fill="#161614" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <path d="M5 2.5v13l11-6.5z" fill="#161614" />
+                </svg>
+              )}
+            </span>
+          </button>
+          <div className="pic-ctx">
+            {shot && shot.kind !== "establishing" && (
               <span className="chip">
                 <i className="dot" aria-hidden="true" />
                 <span>
                   {shot.kind === "reaction" ? `${cap(shot.who)} reacting` : `Take ${shot.take} · ${cap(shot.who)} ${shot.framing === "close" ? "close-up" : "medium"}`}
                 </span>
               </span>
-              {activeLine >= 0 && (
-                <button
-                  type="button"
-                  className="chip"
-                  onClick={() => {
-                    select(activeLine);
-                    setTray(activeLine);
-                  }}
-                >
-                  Other takes
-                </button>
-              )}
-            </div>
-          )}
-          {aud && (
-            <div className="aud">
-              <span className="chip">
-                <i className="dot" aria-hidden="true" />
-                <span>
-                  <b>Take {aud.take}</b> · {cap(setupOf(aud.take)?.who ?? "")} {setupOf(aud.take)?.framing === "close" ? "close-up" : "medium"} · this line only
-                </span>
-              </span>
-              {shotsByLine.get(aud.line)?.some((s) => s.take === aud.take) ? (
-                <span className="chip">In the cut</span>
-              ) : (
-                <button type="button" className="chip" disabled={busy} onClick={() => (onPick(aud.line, aud.take), stopAudition())}>
-                  Use take {aud.take}
-                </button>
-              )}
-              <button type="button" className="chip" onClick={stopAudition}>
-                {aud.multi ? "Stop comparing" : "Back to the cut"}
+            )}
+            {activeLine >= 0 && (
+              <button
+                type="button"
+                className="chip"
+                onClick={() => {
+                  select(activeLine);
+                  setTray(activeLine);
+                }}
+              >
+                Other takes
               </button>
-            </div>
-          )}
+            )}
+          </div>
+          <button type="button" className={`chip cc${subsOn ? " on" : ""}`} aria-pressed={subsOn} title="Subtitles (C)" onClick={() => setSubsOn(!subsOn)}>
+            CC
+          </button>
           {working && <WorkingVeil cut={cut} />}
         </div>
         <div className="underpic">
           <span className="tc">{tc(time)}</span>
-          <span className="now">{shot ? (shot.kind === "establishing" ? "Establishing shot" : `${cap(shot.speaker)}: ${shot.line}`) : result.title}</span>
+          <span className="now">{activeLine >= 0 ? `${cap(lines[activeLine].who)}: ${lines[activeLine].text}` : shot?.kind === "establishing" ? "Establishing shot" : result.title}</span>
           <span className="dur">
             {tc(duration)} · {result.counts.shots} shots
           </span>
@@ -300,6 +281,11 @@ export function Suite({
                 {still(s.take) ? <img src={still(s.take)!} alt="" /> : null}
               </button>
             ))}
+            {notes
+              .filter((n) => !n.sentAt && !n.doneAt)
+              .map((n) => (
+                <i key={n.id} className="note-pin" style={{ left: `${(n.at / Math.max(1, duration)) * 100}%` }} title={`${n.name}: ${n.note}`} />
+              ))}
             <div className="ph" style={{ left: `${(time / Math.max(1, duration)) * 100}%` }} />
           </div>
         </div>
@@ -313,12 +299,13 @@ export function Suite({
             {cap(result.partner)}
           </span>
           <span>Line on top = reaction shot</span>
-          <span>J K L and ← → work too</span>
+          <span>J K L, ← → and C for subtitles</span>
         </div>
+        {notes.length > 0 && <ViewerNotes notes={notes} busy={busy} onSeek={(s) => seek(s)} onNote={onNote} />}
       </div>
 
       <div className="scriptcol">
-        <div className={`page${showMarks ? "" : " hide-marks"}${playing ? " playing" : ""}${scoped ? " scoped" : ""}`}>
+        <div ref={page} className={`page${showMarks ? "" : " hide-marks"}${playing ? " playing" : ""}${scoped ? " scoped" : ""}`}>
           <div className="slug">{cut.heading ?? result.place.toUpperCase()}</div>
           <div className="slug-k">
             {result.fromTakes ? (
@@ -347,13 +334,12 @@ export function Suite({
             const main = here.find((s) => s.kind === "shot") ?? here[0];
             const react = here.find((s) => s.kind === "reaction");
             const sel = scope.kind === "line" && scope.line === j;
+            const heardAt = result.subs?.find((s) => s.line === j)?.s;
+            const playFrom = heardAt !== undefined ? Math.max(0, heardAt - 0.3) : main ? main.at + 0.01 : null;
             const marks = [main?.cut === "J" || main?.cut === "L" ? `${main.cut}-cut` : null, react ? `${cap(react.who)} reacts` : null, main?.pushIn ? "push-in" : null].filter(Boolean);
             return (
               <div key={j}>
-                <div
-                  className={`beat${sel ? " sel" : ""}${j === activeLine && !aud ? " active live-shot" : ""}${inScope(scope, j, line.who) && scoped ? " inscope" : ""}`}
-                  data-li={j}
-                >
+                <div className={`beat${sel ? " sel" : ""}${j === activeLine ? " active live-shot" : ""}${inScope(scope, j, line.who) && scoped ? " inscope" : ""}`} data-li={j}>
                   <div className="bthumb">
                     {main && (
                       <>
@@ -371,9 +357,17 @@ export function Suite({
                       </div>
                     )}
                   </div>
-                  <div className="btext" onClick={() => (main ? seek(main.at + 0.01) : null, select(j))}>
+                  <div className="btext" onClick={() => (playFrom !== null ? seek(playFrom) : null, select(j))}>
                     <div className="char">{line.who}</div>
-                    <div className="line">{line.text}</div>
+                    <div className="line">
+                      {j === activeLine && sub
+                        ? sub.words.map((w, i) => (
+                            <span key={i} className={`w${time >= w.s ? " said" : ""}`}>
+                              {w.t}{" "}
+                            </span>
+                          ))
+                        : line.text}
+                    </div>
                     {marks.length > 0 && (
                       <div className="marks">
                         {marks.map((m) => (
@@ -387,7 +381,7 @@ export function Suite({
                     <button type="button" onClick={() => (select(j), setTray(tray === j ? null : j))}>
                       Other takes
                     </button>
-                    <button type="button" onClick={() => main && seek(main.at + 0.01)}>
+                    <button type="button" onClick={() => (playFrom !== null ? seek(playFrom) : null, void video.current?.play().catch(() => {}))}>
                       Play from here
                     </button>
                   </div>
@@ -399,11 +393,10 @@ export function Suite({
                     takes={takesFor(j)}
                     cut={cut}
                     inCut={new Set(here.map((s) => s.take))}
-                    playing={aud?.line === j ? aud.take : null}
                     busy={busy}
-                    onPlay={(takes) => audition(j, takes)}
+                    onStart={() => video.current?.pause()}
                     onUse={(take) => onPick(j, take)}
-                    onClose={() => (setTray(null), aud && stopAudition())}
+                    onClose={() => setTray(null)}
                   />
                 )}
               </div>
@@ -416,16 +409,66 @@ export function Suite({
   );
 }
 
-/** Every take of one line, fanned out under it: play just that line in each, compare them all, use one. */
+/** Notes from the share link: newest work first; passed-on and put-aside ones folded away. */
+function ViewerNotes({ notes, busy, onSeek, onNote }: { notes: ViewerNote[]; busy: boolean; onSeek: (s: number) => void; onNote?: (id: number, action: "send" | "done") => void }) {
+  const [all, setAll] = useState(false);
+  const open = notes.filter((n) => !n.sentAt && !n.doneAt).sort((a, b) => a.at - b.at);
+  const handled = notes.filter((n) => n.sentAt || n.doneAt);
+  return (
+    <div className="room-notes viewer-notes">
+      <h3>
+        <span>Notes from viewers{open.length ? ` · ${open.length} new` : ""}</span>
+        {handled.length > 0 && (
+          <button type="button" className="textlink" onClick={() => setAll(!all)}>
+            {all ? "Hide earlier" : `${handled.length} earlier`}
+          </button>
+        )}
+      </h3>
+      <ol className="note-list">
+        {[...open, ...(all ? handled : [])].map((n) => (
+          <li key={n.id} className={n.sentAt || n.doneAt ? "sent" : ""}>
+            <button type="button" className="tc" onClick={() => onSeek(n.at)}>
+              {tc(n.at)}
+            </button>
+            <div>
+              <b>{n.name}</b>
+              <p>{n.note}</p>
+            </div>
+            <div className="acts">
+              {n.sentAt ? (
+                <span className="fine">Sent to Loupe</span>
+              ) : n.doneAt ? (
+                <span className="fine">Done</span>
+              ) : (
+                <>
+                  <button type="button" disabled={busy} onClick={() => onNote?.(n.id, "send")}>
+                    Send to Loupe
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => onNote?.(n.id, "done")}>
+                    Done
+                  </button>
+                </>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * Every take of one line, fanned out under it. Each card plays just that line, in the card itself; Compare all plays
+ * them one after another, card by card. The cut's picture stays where it was.
+ */
 function Tray({
   line,
   text,
   takes,
   cut,
   inCut,
-  playing,
   busy,
-  onPlay,
+  onStart,
   onUse,
   onClose,
 }: {
@@ -434,13 +477,20 @@ function Tray({
   takes: string[];
   cut: RoomCut;
   inCut: Set<string>;
-  playing: string | null;
   busy: boolean;
-  onPlay: (takes: string[]) => void;
+  onStart: () => void;
   onUse: (take: string) => void;
   onClose: () => void;
 }) {
   const result = cut.done!.result!;
+  // What's playing: the card, and the ones still to come when comparing.
+  const [queue, setQueue] = useState<string[]>([]);
+  const playing = queue[0] ?? null;
+  const play = (list: string[]) => {
+    onStart();
+    setQueue(list);
+  };
+  const comparing = queue.length > 1;
   return (
     <div className="tray">
       <div className="tray-k">
@@ -449,11 +499,11 @@ function Tray({
         </b>
         <span>Click one to hear just this line</span>
         {takes.length > 1 && (
-          <button type="button" className="cmp" onClick={() => onPlay(takes)}>
+          <button type="button" className="cmp" onClick={() => (playing ? setQueue([]) : play(takes))}>
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <path d="M2 1v8l7-4z" fill="currentColor" />
+              {playing ? <path d="M2 1.5h2.2v7H2zM5.8 1.5H8v7H5.8z" fill="currentColor" /> : <path d="M2 1v8l7-4z" fill="currentColor" />}
             </svg>
-            Compare all
+            {playing ? "Stop" : "Compare all"}
           </button>
         )}
         <button type="button" className="textlink" onClick={onClose}>
@@ -464,41 +514,138 @@ function Tray({
         <p style={{ fontSize: 13, color: "var(--ink3)" }}>No other take has this line on camera.</p>
       ) : (
         <div className="takes">
-          {takes.map((take, k) => {
-            const x = result.lineTakes![take]!.lines[line]!;
-            const setup = result.takes.find((t) => t.take === take)?.setup;
-            const on = inCut.has(take);
-            const partial = x.match < 0.85;
-            const note = result.performances?.[take];
-            return (
-              <div key={take} className={`take${on ? " on" : ""}${playing === take ? " playing" : ""}${partial ? " flub" : ""}`} style={{ animationDelay: `${k * 40}ms` }}>
-                <button type="button" className="tk-play" aria-label={`Play this line in take ${take}`} onClick={() => onPlay([take])}>
-                  {cut.takes[take]?.still ? <img src={cut.takes[take]!.still!} alt="" /> : <span style={{ display: "block", aspectRatio: "16/9" }} />}
-                  <span className="tk-pi">
-                    <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                      <path d="M2 1v8l7-4z" fill="#161614" />
-                    </svg>
-                  </span>
-                  <span className="tk-dur">{(x.e - x.s).toFixed(1)} s</span>
-                  <div className="tk-cap">{x.said}</div>
-                </button>
-                <div className="tk-foot">
-                  <b>
-                    Take {take} · {setup?.framing === "close" ? "CU" : "MS"}
-                    {on && <em>In the cut</em>}
-                  </b>
-                  <span className="tk-note">{partial ? "Doesn't say all of the line" : (note ?? "Every word there")}</span>
-                  {!on && (
-                    <button type="button" className="tk-use" disabled={busy} onClick={() => onUse(take)}>
-                      Use this take
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {takes.map((take, k) => (
+            <TakeCard
+              key={take}
+              take={take}
+              x={result.lineTakes![take]!.lines[line]!}
+              framing={result.takes.find((t) => t.take === take)?.setup?.framing ?? "medium"}
+              note={result.performances?.[take] ?? null}
+              media={cut.takes[take] ?? null}
+              on={inCut.has(take)}
+              playing={playing === take}
+              delay={k * 40}
+              busy={busy}
+              onPlay={() => (playing === take ? setQueue([]) : play([take]))}
+              onEnded={() => setTimeout(() => setQueue((q) => (q[0] === take ? q.slice(1) : q)), comparing ? 400 : 0)}
+              onUse={() => onUse(take)}
+            />
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** One take of the line: its own little player, from just before the line to just after it. */
+function TakeCard({
+  take,
+  x,
+  framing,
+  note,
+  media,
+  on,
+  playing,
+  delay,
+  busy,
+  onPlay,
+  onEnded,
+  onUse,
+}: {
+  take: string;
+  x: LineInTake;
+  framing: "medium" | "close";
+  note: string | null;
+  media: { still: string | null; preview: string | null } | null;
+  on: boolean;
+  playing: boolean;
+  delay: number;
+  busy: boolean;
+  onPlay: () => void;
+  onEnded: () => void;
+  onUse: () => void;
+}) {
+  const video = useRef<HTMLVideoElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState(0);
+  const from = Math.max(0, x.s - 0.25);
+  const to = x.e + 0.3;
+  const partial = x.match < 0.85;
+  const words = x.said.split(/\s+/).filter(Boolean);
+
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    if (!playing) {
+      v.pause();
+      return;
+    }
+    card.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    const start = () => {
+      v.currentTime = from;
+      void v.play().catch(() => {});
+    };
+    if (v.readyState >= 1) start();
+    else v.addEventListener("loadedmetadata", start, { once: true });
+  }, [playing, from]);
+
+  const progress = playing ? Math.min(1, Math.max(0, (at - from) / (to - from))) : 0;
+  // Words light up as they're heard, spread over the line's length.
+  const said = playing && at >= x.s ? Math.min(words.length, Math.floor(((at - x.s) / Math.max(0.1, x.e - x.s)) * words.length) + 1) : 0;
+
+  return (
+    <div ref={card} className={`take${on ? " on" : ""}${playing ? " playing" : ""}${partial ? " flub" : ""}`} style={{ animationDelay: `${delay}ms` }}>
+      <button type="button" className="tk-play" aria-label={`${playing ? "Stop" : "Play"} this line in take ${take}`} onClick={onPlay}>
+        {media?.preview ? (
+          <video
+            ref={video}
+            src={media.preview}
+            poster={media.still ?? undefined}
+            playsInline
+            preload="metadata"
+            onTimeUpdate={() => {
+              const v = video.current;
+              if (!v) return;
+              setAt(v.currentTime);
+              if (playing && v.currentTime >= to) {
+                v.pause();
+                onEnded();
+              }
+            }}
+            style={{ display: "block", width: "100%", aspectRatio: "16/9", objectFit: "cover", background: "#121210" }}
+          />
+        ) : media?.still ? (
+          <img src={media.still} alt="" />
+        ) : (
+          <span style={{ display: "block", aspectRatio: "16/9" }} />
+        )}
+        <span className="tk-pi">
+          <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+            {playing ? <path d="M2 1.5h2.2v7H2zM5.8 1.5H8v7H5.8z" fill="#161614" /> : <path d="M2 1v8l7-4z" fill="#161614" />}
+          </svg>
+        </span>
+        <span className="tk-dur">{(x.e - x.s).toFixed(1)} s</span>
+        <div className="tk-cap">
+          {words.map((w, i) => (
+            <span key={i} className={`w${i < said ? " said" : ""}`}>
+              {w}{" "}
+            </span>
+          ))}
+        </div>
+        <i className="tk-bar" style={{ width: `${progress * 100}%` }} />
+      </button>
+      <div className="tk-foot">
+        <b>
+          Take {take} · {framing === "close" ? "CU" : "MS"}
+          {on && <em>In the cut</em>}
+        </b>
+        <span className="tk-note">{partial ? "Doesn't say all of the line" : (note ?? "Every word there")}</span>
+        {!on && (
+          <button type="button" className="tk-use" disabled={busy} onClick={onUse}>
+            Use this take
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -543,7 +690,7 @@ function Cutting({ cut, stills, title }: { cut: RoomCut; stills: string[]; title
           </div>
         </div>
         <div className="underpic">
-          <span className="now">Loupe is cutting the scene. It usually takes 10 to 20 minutes; you can close this page and come back.</span>
+          <span className="now">Loupe is cutting the scene. It usually takes 5 to 20 minutes; you can close this page and come back.</span>
         </div>
       </div>
       <div className="scriptcol">

@@ -214,8 +214,10 @@ function isSlate(t: string[]): boolean {
   return t.every((x) => NUMBER.test(x));
 }
 
-export const CLIENT = "CLIENT";
-export const PARTNER = "PARTNER";
+// With no script there are no names: the lead (on camera in the first take) and the other actor, until a note or
+// the script names them.
+export const CLIENT = "ACTOR 1";
+export const PARTNER = "ACTOR 2";
 
 /**
  * A script from sentences and who says each (±1, from coverage.ts):

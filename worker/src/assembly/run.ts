@@ -108,6 +108,11 @@ export type AssemblyResult = {
    * (0-1), and the words heard. Null: not in that take.
    */
   lineTakes: Record<string, { q: number | null; why: string[]; complete: number | null; performance: number | null; lines: ({ s: number; e: number; match: number; said: string } | null)[] }>;
+  /**
+   * Subtitles as heard (not as shot: a line can start under the shot before it, or play over a reaction): each line
+   * of `lines`, when it's heard in the preview, word by word (seconds from the preview's start).
+   */
+  subs: { line: number; s: number; e: number; words: { t: string; s: number }[] }[];
   /** The package, relative to the scene's "Loupe Cut" folder. */
   preview: { path: string; size: number };
   files: { path: string; size: number }[];
@@ -462,6 +467,29 @@ export async function makeAssembly(
       return { ...shot, at: Math.round((shot.at + lead) * 1000) / 1000, ...(push ? { pushIn: push.scale, ...(push.snap !== undefined ? { snap: true } : {}) } : {}) };
     }),
   ];
+  // When every word is heard in the preview: each dialogue edit plays its take from `in` to `out` at `recIn` on the
+  // scene's timeline, which starts `lead` seconds into the preview.
+  const heardWords = new Map<number, { t: string; s: number; e: number }[]>();
+  const TT = new Map(cut.takes.map((t) => [t.take, t]));
+  for (const a of cut.audio) {
+    const take = TT.get(a.take);
+    if (!take) continue;
+    take.matches.forEach((m, j) => {
+      if (!isFound(m) || m.end < a.in || m.start > a.out) return;
+      for (const w of take.words.slice(m.j0, m.j1 + 1)) {
+        if (w.s < a.in - 0.05 || w.s > a.out) continue;
+        const at = lead + a.recIn + (w.s - a.in);
+        heardWords.set(j, [...(heardWords.get(j) ?? []), { t: w.t, s: at, e: at + (w.e - w.s) }]);
+      }
+    });
+  }
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
+  const subs = [...heardWords.entries()]
+    .map(([line, ws]) => {
+      const words = ws.sort((x, y) => x.s - y.s).filter((w, i, all) => i === 0 || w.s - all[i - 1].s > 0.01);
+      return { line, s: r3(words[0].s), e: r3(Math.max(...words.map((w) => w.e))), words: words.map((w) => ({ t: w.t, s: r3(w.s) })) };
+    })
+    .sort((x, y) => x.s - y.s);
   const sizes = await Promise.all(files.map(async (f) => (await stat(f.file)).size));
   const result: AssemblyResult = {
     title,
@@ -504,6 +532,7 @@ export async function makeAssembly(
     camera,
     takes: scene.takes.map((t) => ({ take: t.take, path: t.path, found: scene.found[t.take] ?? null, setup: t.setup, used: used.has(t.take) || cut.video.some((p) => p.take === t.take) })),
     lines: cut.units.map((u) => ({ who: u.who, text: u.text })),
+    subs,
     dropped: cut.dropped,
     jumps: cut.jumps,
     heard,
