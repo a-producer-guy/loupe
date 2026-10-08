@@ -1,9 +1,11 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
+import { DirectDemo } from "@/components/landing/direct-demo";
 import { GruntWork } from "@/components/landing/grunt-work";
+import { HeroProof } from "@/components/landing/hero-proof";
 import { Savings } from "@/components/landing/savings";
 import { SceneDemo } from "@/components/landing/scene-demo";
-import { Loupe, type LoupeDept } from "@/components/loupe/loupe";
+import { Loupe } from "@/components/loupe/loupe";
 import { Wordmark } from "@/components/ui/brand";
 import { PLANS } from "@/lib/footage/account-view";
 
@@ -13,13 +15,6 @@ const cta = "inline-flex h-11 items-center justify-center rounded-xl bg-text px-
 const ctaSoft = "inline-flex h-11 items-center justify-center rounded-xl bg-surface px-5 text-[14.5px] font-medium text-text ring-1 ring-line-strong transition hover:shadow-lift-sm";
 const h2 = "text-[clamp(32px,4.2vw,52px)] font-semibold leading-none tracking-[-0.045em] text-balance";
 const lede = "mt-3.5 max-w-[56ch] text-[17px] text-muted";
-
-const MODES: { dept: LoupeDept; name: string; key: string; does: string; say: string }[] = [
-  { dept: "edit", name: "Edit", key: "⌥1", does: "Takes, timing, reactions.", say: "“different take”" },
-  { dept: "sound", name: "Sound", key: "⌥2", does: "Dialogue, room tone, atmosphere.", say: "“rain outside”" },
-  { dept: "color", name: "Color", key: "⌥3", does: "Warmth, contrast, matching shots.", say: "“warmer”" },
-  { dept: "preview", name: "Preview", key: "⌥4", does: "Watch and ask. Nothing changes.", say: "“why this take?”" },
-];
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
   {
@@ -150,21 +145,7 @@ export default function Landing() {
               </figcaption>
             </figure>
           </div>
-          <dl className="grid gap-3">
-            {[
-              { was: "3 hours", now: "5–10 min", what: "for a first cut of a 2–3 minute scene. It works while you get a coffee." },
-              { was: "$195", now: "$39", what: "a scene. Three hours of a mid-level editor at $65 an hour, against Loupe. Studios pay $25." },
-              { was: "14 takes", now: "1 click", what: "to hear every take of a line, back to back. No scrubbing." },
-            ].map((b) => (
-              <div key={b.now} className="rounded-[18px] bg-surface px-5 py-4 shadow-lift-sm ring-1 ring-line">
-                <dt className="flex items-baseline gap-2.5">
-                  <s className="text-[15px] text-faint decoration-tally decoration-2">{b.was}</s>
-                  <span className="text-[clamp(30px,3.2vw,40px)] font-light leading-none tracking-[-0.05em] tabular-nums">{b.now}</span>
-                </dt>
-                <dd className="mt-1.5 text-[13.5px] text-muted">{b.what}</dd>
-              </div>
-            ))}
-          </dl>
+          <HeroProof />
         </section>
 
         <section id="how" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">
@@ -209,21 +190,11 @@ export default function Landing() {
         </section>
 
         <section className="mx-auto max-w-[1160px] px-6 pb-[88px]" aria-labelledby="modes">
-          <h2 id="modes" className={h2}>One editor, four hats</h2>
-          <p className={`${lede} mb-8`}>Switch what Loupe works on with ⌥1–4 or a slash command. Your next note only changes that.</p>
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-            {MODES.map((m) => (
-              <div key={m.dept} className="grid justify-items-start gap-2 rounded-[14px] bg-surface p-5 shadow-lift-sm ring-1 ring-line">
-                <Loupe size={46} dept={m.dept} />
-                <h3 className="mt-1.5 flex items-center gap-2 text-[16px] font-semibold">
-                  {m.name}
-                  <kbd className="rounded-[5px] bg-bg px-1.5 font-mono text-[11px] font-normal text-faint ring-1 ring-line">{m.key}</kbd>
-                </h3>
-                <p className="text-[13.5px] text-muted">{m.does}</p>
-                <span className="font-mono text-[12px] text-faint">{m.say}</span>
-              </div>
-            ))}
-          </div>
+          <h2 id="modes" className={h2}>Then you just give notes</h2>
+          <p className={`${lede} mb-8`}>
+            Like you would to an editor, in plain words. Loupe wears four hats: switch with ⌥1–4 or a slash, and your next note only changes that.
+          </p>
+          <DirectDemo />
         </section>
 
         <section id="studios" className="mx-auto grid max-w-[1160px] scroll-mt-5 items-center gap-10 px-6 pb-24 md:grid-cols-2" aria-label="Loupe and editors">
