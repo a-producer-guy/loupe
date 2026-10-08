@@ -114,11 +114,24 @@ async function main() {
     raw = raw.replace("[YOUR-PASSWORD]", encodeURIComponent(await askHidden("The database password you chose when making the project (hidden): ")));
   }
   if (!raw) throw new Error("Point me at Loupe's Supabase project's database: set MIGRATION_DATABASE_URL, or --admin-env <file>.");
-  const adminUrl = normalizeDatabaseUrl(raw, "session");
+  let adminUrl = normalizeDatabaseUrl(raw, "session");
   if (!URL.canParse(adminUrl)) throw new Error("That doesn't look like a connection string (it should start with postgresql://). Nothing was changed.");
   const host = new URL(adminUrl).hostname;
   console.log(`Connecting to ${host} as ${decodeURIComponent(new URL(adminUrl).username)}…`);
-  const sql = postgres(adminUrl, { max: 1, prepare: false, ssl: tlsFor(adminUrl), onnotice: () => {} });
+  let sql = postgres(adminUrl, { max: 1, prepare: false, ssl: tlsFor(adminUrl), onnotice: () => {} });
+  // The string's password didn't work (an old one, or none): ask for it, hidden, and try once more.
+  const wrongPassword = (e: unknown) => (e as { code?: string }).code === "28P01";
+  const [first] = await sql`select 1 as ok`.catch(async (error) => {
+    if (!wrongPassword(error) || !process.stdin.isTTY) throw error;
+    await sql.end({ timeout: 2 });
+    const url = new URL(adminUrl);
+    url.password = encodeURIComponent(await askHidden("That password didn't work. The database password (hidden): "));
+    adminUrl = url.toString();
+    raw = adminUrl;
+    sql = postgres(adminUrl, { max: 1, prepare: false, ssl: tlsFor(adminUrl), onnotice: () => {} });
+    return sql`select 1 as ok`;
+  });
+  void first;
 
   try {
     const [who] = await sql`select current_user as name`;
