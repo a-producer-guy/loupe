@@ -14,6 +14,7 @@
 // loupe_app connection into app/.env.local and worker/.env. The admin
 // connection is only used here and is never saved anywhere.
 
+import { execFileSync } from "node:child_process";
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -103,15 +104,26 @@ function askHidden(question: string): Promise<string> {
   });
 }
 
+/**
+ * On a Mac: "copy it, then press return here", read from the clipboard, so nothing is pasted into the terminal (a
+ * hidden paste can go missing). Elsewhere, a hidden paste.
+ */
+async function askCopied(what: string): Promise<string> {
+  if (process.platform !== "darwin") return askHidden(`Paste ${what} here (it stays hidden): `);
+  await askHidden(`Copy ${what}, then press return here… `);
+  return execFileSync("pbpaste", { encoding: "utf8" }).replace(/[\x00-\x1f\x7f]/g, "").trim();
+}
+
 async function main() {
   const adminEnv = option("--admin-env");
   let raw = process.env.MIGRATION_DATABASE_URL || (adminEnv ? readEnvValue(path.resolve(adminEnv), "DATABASE_URL") : undefined);
   if (!raw && process.stdin.isTTY) {
-    console.log("In the Backdrop Supabase project: Connect (top of the page) → Session pooler → copy the URI.");
-    raw = await askHidden("Paste it here (it stays hidden): ");
+    console.log("In the Backdrop Supabase project: Connect (top of the page) → Session pooler.");
+    raw = await askCopied("the connection string (the URI)");
+    if (!raw.startsWith("postgres")) throw new Error("What's copied isn't the connection string (it starts with postgresql://). Copy it again; nothing was changed.");
   }
   if (raw?.includes("[YOUR-PASSWORD]")) {
-    raw = raw.replace("[YOUR-PASSWORD]", encodeURIComponent(await askHidden("The database password you chose when making the project (hidden): ")));
+    raw = raw.replace("[YOUR-PASSWORD]", encodeURIComponent(await askCopied("the database password")));
   }
   if (!raw) throw new Error("Point me at Loupe's Supabase project's database: set MIGRATION_DATABASE_URL, or --admin-env <file>.");
   let adminUrl = normalizeDatabaseUrl(raw, "session");
@@ -125,7 +137,8 @@ async function main() {
     if (!wrongPassword(error) || !process.stdin.isTTY) throw error;
     await sql.end({ timeout: 2 });
     const url = new URL(adminUrl);
-    url.password = encodeURIComponent(await askHidden("That password didn't work. The database password (hidden): "));
+    console.log("That password didn't work.");
+    url.password = encodeURIComponent(await askCopied("the database password"));
     adminUrl = url.toString();
     raw = adminUrl;
     sql = postgres(adminUrl, { max: 1, prepare: false, ssl: tlsFor(adminUrl), onnotice: () => {} });
