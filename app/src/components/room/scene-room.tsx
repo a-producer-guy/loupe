@@ -8,10 +8,10 @@ import { Ring } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/toast";
 import { DropZone } from "@/components/upload/drop-zone";
 import type { RoomCut } from "@/lib/footage/cut-types";
-import { formatBytes } from "@/lib/footage/names";
 import type { ShootDetail } from "@/lib/footage/status";
 import { usePolling, useShootProgress } from "@/lib/hooks";
 import { CommandBar, type Dept } from "./command-bar";
+import { ExportSheet } from "./export-sheet";
 import { Ingest } from "./ingest";
 import { scopeWords, Suite, type Scope } from "./suite";
 import "./room.css";
@@ -30,6 +30,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
   const [dept, setDept] = useState<Dept>("edit");
   const [scope, setScope] = useState<Scope>({ kind: "scene" });
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // This tab's live progress for clips still uploading, by their path in the scene.
   const inFlight = useMemo(() => {
@@ -73,12 +74,6 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
     return null;
   };
 
-  const exportCut = async () => {
-    const result = await download.start();
-    if (result?.step === "done") toast({ tone: "good", title: "Ready for Premiere", detail: `${formatBytes(result.bytes)} is in the folder “${result.folder}”. Open “Loupe Cut” and import the timeline.` });
-    else if (result?.step === "error") toast({ tone: "bad", title: "The download stopped", detail: `${result.message} Click Export again to carry on.` });
-  };
-
   const done = cut.done?.result;
   const cutting = !done && cut.latest && (cut.latest.status === "waiting" || cut.latest.status === "working");
   const phase = done ? "suite" : cutting ? "cutting" : "ingest";
@@ -104,20 +99,17 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
                   Add footage
                 </button>
               )}
-              {done &&
-                (download.supported ? (
-                  <button type="button" className="btn" onClick={exportCut} disabled={downloading}>
-                    {downloading ? (
-                      <>
-                        <Ring value={download.state.step === "working" ? download.state.bytesDone / Math.max(1, download.state.bytes) : 0} size={14} stroke={2.5} /> Exporting…
-                      </>
-                    ) : (
-                      "Export to Premiere"
-                    )}
-                  </button>
-                ) : (
-                  <span className="note">Exporting needs Chrome or Edge</span>
-                ))}
+              {done && (
+                <button type="button" className="btn" onClick={() => setExporting(true)}>
+                  {downloading ? (
+                    <>
+                      <Ring value={download.state.step === "working" ? download.state.bytesDone / Math.max(1, download.state.bytes) : 0} size={14} stroke={2.5} /> Exporting…
+                    </>
+                  ) : (
+                    "Export"
+                  )}
+                </button>
+              )}
             </div>
           </header>
           <main className="flex min-h-0 flex-1 flex-col">
@@ -152,6 +144,9 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
                 return post({ action: "note", note, scope: [mode, scopeWords(scope, lines)].filter(Boolean).join(". ") || null });
               }}
             />
+          )}
+          {exporting && done && (
+            <ExportSheet result={done} state={download.state} supported={download.supported} onStart={download.start} onClose={() => setExporting(false)} />
           )}
         </div>
       )}

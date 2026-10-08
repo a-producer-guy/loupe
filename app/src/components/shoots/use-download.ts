@@ -29,7 +29,7 @@ export function useShootDownload(shootId: number) {
     if (!picker) return null;
     let root: FileSystemDirectoryHandle;
     try {
-      root = await picker({ id: "reelarc-footage", mode: "readwrite", startIn: "downloads" });
+      root = await picker({ id: "loupe-export", mode: "readwrite", startIn: "downloads" });
     } catch {
       return null; // picker closed
     }

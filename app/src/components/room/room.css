@@ -305,3 +305,15 @@
 .room .picture:hover .cc, .room .picture.paused .cc, .room .picture .cc:focus-visible{opacity:1}
 .room .picture .cc:not(.on){background:rgba(20,20,18,.55); color:rgba(255,255,255,.75); text-decoration:line-through}
 .room .take video{pointer-events:none}
+.room .sheet .apps{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 14px}
+.room .app-choice{display:flex; align-items:center; gap:12px; padding:14px; border-radius:14px; background:var(--surface); box-shadow:0 0 0 1px var(--hair2); text-align:left; transition:box-shadow .15s, transform .15s}
+.room .app-choice:hover{box-shadow:0 0 0 1px var(--ink3), var(--lift-sm); transform:translateY(-1px)}
+.room .app-choice:disabled{opacity:.5; cursor:default; transform:none}
+.room .app-choice b{display:block; font-weight:500; font-size:14.5px}
+.room .app-choice small{display:block; font-size:12px; color:var(--ink3)}
+.room .app-mark{width:40px; height:40px; flex:none; border-radius:10px; background:var(--sunk); display:grid; place-items:center; font-weight:600; font-size:13px; color:var(--ink2); overflow:hidden}
+.room .app-mark img{width:100%; height:100%; object-fit:contain}
+.room .sheet .steps{margin:4px 0 16px; padding-left:20px; display:grid; gap:8px; font-size:13.5px; color:var(--ink2)}
+.room .sheet .tracks{margin-bottom:4px}
+.room .sheet .exporting{display:flex; align-items:center; gap:12px; font-size:14px; color:var(--ink2); margin:10px 0 18px}
+.room .sheet .bad{color:var(--tally)}
