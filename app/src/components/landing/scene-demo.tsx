@@ -7,7 +7,7 @@ import { Still, type Flaw, type Setup } from "./still";
 
 // The landing page's "how it works", played out on a two-person dialogue scene: the takes come in, Loupe hears every
 // line in every take, picks the best read of each (and says why), then cuts the scene and plays it. Under it, a
-// race: Loupe's few minutes against the three hours the same work takes by hand. Everything runs off one clock, so
+// race: Loupe's 5 to 10 minutes against the three hours the same work takes by hand. Everything runs off one clock, so
 // a step can be jumped to; it pauses off screen and waits for a press when the visitor prefers less motion.
 
 type Take = { take: string; setup: Setup; note: string; flaw?: Flaw; pick?: boolean; nudge?: number };
@@ -81,10 +81,10 @@ const CUT_LEN = SHOTS.reduce((s, x) => s + x.secs, 0);
 const CUT_END = REVIEW_END + CUT_LEN;
 const LOOP = CUT_END + 3.5;
 const HAND_MINUTES = 200;
-const LOUPE_MINUTES = 5;
+const LOUPE_MINUTES = 10;
 
 const STEPS = [
-  { h: "Drop the folder", p: "Cards, sound and script. It uploads, checks every file and makes proxies.", at: 0 },
+  { h: "Drop the folder", p: "Cards, sound and script. It uploads, checks every file and makes your proxies. No Media Encoder.", at: 0 },
   { h: "It watches every take", p: "Every line, heard in every take, lined up with your script.", at: DROP + 0.01 },
   { h: "Picks the best reads", p: "Flubs, soft focus and boom in shot are out. Every pick has a reason.", at: DROP + DECIDE },
   { h: "Cuts the scene", p: "Reactions, J and L cuts, no jump cuts. Ready to watch, then give notes.", at: REVIEW_END + 0.01 },
@@ -110,8 +110,8 @@ function state(t: number) {
 
 /** By hand, this far into the same work. */
 function handDoing(minutes: number) {
-  if (minutes < 2) return "copying the cards";
-  if (minutes < 4) return "still copying the cards";
+  if (minutes < 4) return "copying the cards";
+  if (minutes < 9) return "still copying the cards";
   return "starting on the proxies";
 }
 
@@ -210,7 +210,7 @@ export function SceneDemo() {
       <p className="sr-only">
         A demo: fourteen takes of a two-person dialogue scene go in. Loupe hears each line in every take, rejects the flubs, the soft focus and the boom in
         shot, picks the best read of each line with a reason, then cuts the scene with reactions and J and L cuts. By hand that work takes about three
-        hours; Loupe takes a few minutes.
+        hours; Loupe takes 5 to 10 minutes.
       </p>
       <div className="mb-4 flex items-center gap-3">
         <Loupe size={34} mood={mood} dept="edit" ticklish={false} />
@@ -357,7 +357,7 @@ export function SceneDemo() {
 
       <div className="mt-6 grid gap-3 rounded-[16px] bg-bg p-4 sm:p-5" aria-hidden="true">
         {[
-          { who: "Loupe", time: "a few minutes", fill: progress, note: progress >= 1 ? "Done. You were getting a coffee." : "Working…", ink: true },
+          { who: "Loupe", time: "5 to 10 minutes", fill: progress, note: progress >= 1 ? "Done. You were getting a coffee." : "Working…", ink: true },
           {
             who: "By hand",
             time: "about 3 hours 20 minutes",

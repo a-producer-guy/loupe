@@ -75,7 +75,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     ),
   },
   { q: "What do I need to give it?", a: "The folder from the shoot (camera cards and sound) and the script as a Final Draft, Fountain or PDF file. Single-camera dialogue scenes work best today." },
-  { q: "How long does it take?", a: "Uploading depends on your internet. Once the footage is in, the cut is usually ready in minutes." },
+  { q: "How long does it take?", a: "Uploading depends on your internet. Once the footage is in, a 2–3 minute scene is cut in about 5 to 10 minutes." },
   { q: "Does it work with Premiere?", a: "Yes. Export gives you a Premiere timeline with every alternate take stacked above each shot, a marker saying why each take was picked, and proxies attached so it plays smoothly." },
   { q: "Is my footage private?", a: "Your footage is yours. It’s stored privately and used only to cut your scenes." },
   {
@@ -130,23 +130,29 @@ export default function Landing() {
             </h1>
             <p className="mb-7 max-w-[46ch] text-[clamp(17px,1.6vw,20px)] text-muted">
               Drop your scene and your script. Loupe watches every take, picks the best read of every line and cuts the scene, reactions and all, with a
-              reason for every shot. Three hours of grunt work becomes a few minutes. You just give notes.
+              reason for every shot. Three hours of grunt work becomes 5 to 10 minutes. You just give notes.
             </p>
             <div className="flex flex-wrap items-center gap-x-[18px] gap-y-3">
               <Link href="/login" className={cta}>Cut your first scene free</Link>
               <a href="#how" className="text-muted underline decoration-faint underline-offset-4 hover:text-text">Watch it cut a scene</a>
             </div>
             <div className="mt-[18px] flex flex-wrap gap-x-[18px] gap-y-1 text-[13px] text-faint">
-              {["First scene free", "No card to start", "Opens in Premiere"].map((t) => (
+              {["First scene free", "No card to start", "Proxies made for you", "Opens in Premiere"].map((t) => (
                 <span key={t}>
                   <span className="text-good">✓</span> {t}
                 </span>
               ))}
             </div>
+            <figure className="mt-8 max-w-[46ch] border-l-2 border-tally pl-4">
+              <blockquote className="text-[clamp(18px,1.8vw,22px)] font-medium leading-snug tracking-[-0.02em]">“When things just work, life is amazing.”</blockquote>
+              <figcaption className="mt-1.5 text-[13px] text-faint">
+                <b className="font-medium text-muted">Steven</b> · Editor and founder, Reelarc
+              </figcaption>
+            </figure>
           </div>
           <dl className="grid gap-3">
             {[
-              { was: "3 hours", now: "Minutes", what: "for a first cut. It works while you get a coffee." },
+              { was: "3 hours", now: "5–10 min", what: "for a first cut of a 2–3 minute scene. It works while you get a coffee." },
               { was: "$195", now: "$39", what: "a scene. Three hours of a mid-level editor at $65 an hour, against Loupe. Studios pay $25." },
               { was: "14 takes", now: "1 click", what: "to hear every take of a line, back to back. No scrubbing." },
             ].map((b) => (
@@ -178,6 +184,10 @@ export default function Landing() {
               instructions.
             </p>
             <div className="mt-6 grid gap-2.5 text-[14.5px] text-muted">
+              <p>
+                <b className="font-semibold text-text">Proxies?</b> Just drag the folder in. No Media Encoder, no presets, no exporting. They’re made
+                while it uploads and already attached in Premiere.
+              </p>
               <p>
                 <b className="font-semibold text-text">Wi-Fi drops?</b> It says “Reconnecting…” and carries on by itself.
               </p>

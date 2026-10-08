@@ -10,7 +10,7 @@ const courierPrime = Courier_Prime({ subsets: ["latin"], weight: ["400", "700"],
 
 export const metadata: Metadata = {
   title: "Loupe · You shot it. Loupe cuts it.",
-  description: "The assistant editor for narrative film. Drop your scene and script; Loupe watches every take, picks the best reads and cuts the scene in minutes, with a reason for every shot.",
+  description: "The assistant editor for narrative film. Drop your scene and script; Loupe watches every take, picks the best reads and cuts the scene in 5 to 10 minutes, with a reason for every shot.",
   // Not ready for search engines until launch.
   robots: { index: false, follow: false },
 };

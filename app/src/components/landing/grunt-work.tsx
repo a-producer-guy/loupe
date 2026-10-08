@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 const CHORES: { by: string; mins: number; loupe: string }[] = [
   { by: "Babysit the upload, re-copy what failed", mins: 15, loupe: "Picks up where it left off. Drop the folder again and only what’s missing goes up." },
-  { by: "Make proxies so it plays smoothly", mins: 20, loupe: "Made while it uploads" },
+  { by: "Make proxies in Media Encoder so it plays smoothly", mins: 20, loupe: "Made while it uploads. No Media Encoder, no presets." },
   { by: "Log every take, label every setup", mins: 20, loupe: "Every take sorted by shot" },
   { by: "Find each line in every take", mins: 30, loupe: "Lined up with your script" },
   { by: "Watch every take, pick the best read", mins: 45, loupe: "Picked, with a reason you can read" },
