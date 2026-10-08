@@ -86,7 +86,31 @@ export function CommandBar({
   const [about, setAbout] = useState(false);
   const [seen, setSeen] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
   const result = cut.done?.result;
+
+  // A menu or the card about Loupe closes with a click anywhere outside the bar, or Esc.
+  useEffect(() => {
+    if (!menu && !about) return;
+    const outside = (e: PointerEvent) => {
+      if (!bar.current?.contains(e.target as Node)) {
+        setMenu(null);
+        setAbout(false);
+      }
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(null);
+        setAbout(false);
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [menu, about]);
   const lines = result?.lines ?? [];
   const M = MODES[dept];
 
@@ -144,7 +168,7 @@ export function CommandBar({
   const roles = result ? [result.client, result.partner] : [];
 
   return (
-    <div className="cmd" data-mode={dept} style={{ ["--mode" as string]: M.color }}>
+    <div ref={bar} className="cmd" data-mode={dept} style={{ ["--mode" as string]: M.color }}>
       {about && (
         <div className="about">
           <Loupe size={40} mood="happy" />
