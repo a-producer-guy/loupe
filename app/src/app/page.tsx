@@ -119,13 +119,12 @@ export default function Landing() {
       <main>
         <section className="mx-auto grid max-w-[1160px] items-end gap-x-14 gap-y-10 px-6 pb-14 pt-[5vh] md:grid-cols-[1.25fr_0.75fr]" aria-label="Loupe">
           <div>
-            <p className="mb-3.5 text-[13px] text-faint">The assistant editor for narrative film</p>
-            <h1 className="mb-5 text-[clamp(48px,7.6vw,104px)] font-semibold leading-[0.92] tracking-[-0.06em] text-balance">
-              <span className="text-faint">You shot it.</span> Loupe cuts it.
+            <h1 className="mb-5 text-[clamp(46px,7vw,96px)] font-semibold leading-[0.95] tracking-[-0.06em] text-balance">
+              Your first cut in 10 minutes<span className="text-faint">.</span>
             </h1>
             <p className="mb-7 max-w-[46ch] text-[clamp(17px,1.6vw,20px)] text-muted">
-              Drop your scene and your script. Loupe watches every take, picks the best read of every line and cuts the scene, reactions and all, with a
-              reason for every shot. Three hours of grunt work becomes 5 to 10 minutes. You just give notes.
+              Meet Loupe, your assistant editor for narrative film, TV and content. You direct, he edits. No more hours of assembly: every scene cut in
+              10 minutes, with a reason for every shot.
             </p>
             <div className="flex flex-wrap items-center gap-x-[18px] gap-y-3">
               <Link href="/login" className={cta}>Cut your first scene free</Link>
