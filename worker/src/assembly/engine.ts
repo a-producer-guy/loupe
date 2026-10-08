@@ -1150,7 +1150,7 @@ export function assembleAligned(
   const laugh = options.laugh ?? null;
   const beats = new Set((options.beats ?? []).filter((j) => j >= 0 && j < units.length && j !== laugh));
   const onCamera = new Set(takes.flatMap((t) => (t.setup ? [t.setup.who] : [])));
-  const partner = [...onCamera].find((r) => r !== client) ?? roles.find((r) => r !== client) ?? "PARTNER";
+  const partner = [...onCamera].find((r) => r !== client) ?? roles.find((r) => r !== client) ?? "ACTOR 2";
   const T = new Map(takes.map((t) => [t.take, t]));
   const scores = takeScores(takes);
   // How each performance plays, from watching it (performance.ts): a little more or less in the take's favour.

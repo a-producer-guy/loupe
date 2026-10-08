@@ -468,8 +468,8 @@ describe("working the scene out from the takes", () => {
       -1,
     );
     assert.deepEqual(lines, [
-      { kind: "speech", who: "PARTNER", text: "Hi. How are you?" },
-      { kind: "speech", who: "CLIENT", text: "Fine." },
+      { kind: "speech", who: "ACTOR 2", text: "Hi. How are you?" },
+      { kind: "speech", who: "ACTOR 1", text: "Fine." },
     ]);
   });
 

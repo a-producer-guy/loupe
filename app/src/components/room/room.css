@@ -301,3 +301,7 @@
 .room .cmd > *{min-width:0}
 .room .cmdbar input{width:0}
 @media (max-width:560px){ .room .modebtn span, .room .modebtn .caret{display:none} .room .scope{max-width:34vw} }
+.room .picture .cc{position:absolute; right:14px; top:14px; z-index:2; padding:5px 9px; font-size:11px; font-weight:600; letter-spacing:.06em; opacity:0; transition:opacity .25s, background .15s}
+.room .picture:hover .cc, .room .picture.paused .cc, .room .picture .cc:focus-visible{opacity:1}
+.room .picture .cc:not(.on){background:rgba(20,20,18,.55); color:rgba(255,255,255,.75); text-decoration:line-through}
+.room .take video{pointer-events:none}
