@@ -6,7 +6,8 @@ import { accountView, PLANS } from "@/lib/footage/account-view";
 import { formatBytes } from "@/lib/footage/names";
 import { ChoosePlan, ManageBilling, PlanReturn } from "./plan-actions";
 
-const PLAN_NAME = { free: "Free", indie: "Indie", pro: "Pro", studio: "Studio" } as const;
+// Free and Indie work the same way (cut free, pay per export); "free" is just an account that hasn't paid yet.
+const PLAN_NAME = { free: "Indie", indie: "Indie", pro: "Pro", studio: "Studio" } as const;
 
 export default async function PlanPage() {
   const member = await requireMember();
@@ -29,13 +30,11 @@ export default async function PlanPage() {
               <p className="text-[13px] text-faint">Your plan</p>
               <p className="mt-1 text-[44px] font-light leading-none tracking-[-0.05em]">{PLAN_NAME[account.plan]}</p>
               <p className="mt-2 text-[14px] text-muted">
-                {account.plan === "free"
-                  ? "Your first scene is free: upload it, watch Loupe work, direct it and export it."
-                  : account.plan === "indie"
-                    ? "You pay $39 when you export a scene. Nothing else."
-                    : account.billing.status === "past_due"
-                      ? "Your last payment didn't go through. Stripe will try again; update your card to keep your plan."
-                      : `Thanks for being on Loupe.${account.billing.periodEnd ? ` Renews ${new Date(account.billing.periodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric" })}.` : ""}`}
+                {account.plan === "free" || account.plan === "indie"
+                  ? "Uploading, cutting and directing are free. You pay $39 when you export a scene."
+                  : account.billing.status === "past_due"
+                    ? "Your last payment didn't go through. Stripe will try again; update your card to keep your plan."
+                    : `Thanks for being on Loupe.${account.billing.periodEnd ? ` Renews ${new Date(account.billing.periodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric" })}.` : ""}`}
               </p>
               {limits.scenes !== null && (
                 <div className="mt-5 grid gap-4">
@@ -58,7 +57,7 @@ export default async function PlanPage() {
 
           <section className="grid gap-5 md:grid-cols-3">
             {PLANS.map((plan) => {
-              const current = account.plan === plan.id;
+              const current = account.plan === plan.id || (plan.id === "indie" && account.plan === "free");
               return (
                 <div key={plan.id} className={`grid content-start gap-4 rounded-[20px] bg-surface p-6 ring-1 ${current ? "shadow-lift ring-2 ring-text" : "shadow-lift-sm ring-line"}`}>
                   <div>

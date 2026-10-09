@@ -81,7 +81,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "Can I wipe my cards after uploading?",
     a: "Every file is checked after upload, but keep your own copy until you’ve exported. If you want Loupe to be your backup, switch on Keep footage and we’ll hold the originals for as long as you pay for it.",
   },
-  { q: "Why pay at export?", a: "Because you should see Loupe cut your own footage before you pay anything. Uploading, watching the cut and directing it are free for your first scene." },
+  { q: "Why pay at export?", a: "Because you should see Loupe cut your own footage before you pay anything. Uploading, watching the cut and directing it are free. You pay when you export." },
 ];
 
 function List({ title, items }: { title: string; items: string[] }) {
@@ -131,7 +131,7 @@ export default function Landing() {
               <a href="#how" className="text-muted underline decoration-faint underline-offset-4 hover:text-text">Watch it cut a scene</a>
             </div>
             <div className="mt-[18px] flex flex-wrap gap-x-[18px] gap-y-1 text-[13px] text-faint">
-              {["First scene free", "No card to start", "Proxies made for you", "Opens in Premiere"].map((t) => (
+              {["Cutting is free", "No card to start", "Proxies made for you", "Opens in Premiere"].map((t) => (
                 <span key={t}>
                   <span className="text-good">✓</span> {t}
                 </span>

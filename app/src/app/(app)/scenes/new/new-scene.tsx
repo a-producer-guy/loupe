@@ -132,7 +132,7 @@ export function NewScene({ planNeeded, free }: { planNeeded: boolean; free: bool
               <span>Folders kept as shot</span>
               <span>Hidden files skipped</span>
               <span>Proxies made for Premiere</span>
-              {free && !planNeeded && <span>Your first scene is free</span>}
+              {free && !planNeeded && <span>Cutting is free. You pay when you export.</span>}
             </div>
           </div>
         </div>

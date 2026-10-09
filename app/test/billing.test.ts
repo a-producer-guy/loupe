@@ -66,34 +66,29 @@ beforeEach(async () => {
 });
 
 describe("paying for exports", () => {
-  test("the first scene is free; the next one opens Stripe for $39 and is unlocked once, when it's paid", async () => {
+  test("exporting always costs on Indie: $39 on Stripe's page, unlocked once, when it's paid", async () => {
     const one = await sceneWithCut("One");
-    const two = await sceneWithCut("Two");
-    assert.deepEqual((await sceneBilling(db, ACCT, one.scene.id)).next, { kind: "free" });
-    assert.deepEqual(await unlock(one.scene.id), { unlocked: true, how: "free" });
-    assert.deepEqual(await unlock(one.scene.id), { unlocked: true, how: "free" }, "unlocking again changes nothing");
-
-    assert.deepEqual((await sceneBilling(db, ACCT, two.scene.id)).next, { kind: "pay", cents: 3900 });
-    const page = await unlock(two.scene.id);
+    assert.deepEqual((await sceneBilling(db, ACCT, one.scene.id)).next, { kind: "pay", cents: 3900 }, "no free export, even the first");
+    const page = await unlock(one.scene.id);
     assert.ok(!page.unlocked && page.url.startsWith("https://checkout.stripe.test/"));
     const id = sessionOf(page.url);
     // Not paid yet: nothing given.
     assert.equal((await settleSession(db, id)).paid, false);
-    assert.equal((await sceneBilling(db, ACCT, two.scene.id)).unlocked, false);
+    assert.equal((await sceneBilling(db, ACCT, one.scene.id)).unlocked, false);
 
     pay(id);
-    assert.deepEqual(await settleSession(db, id), { kind: "scene", projectId: two.scene.id, paid: true });
+    assert.deepEqual(await settleSession(db, id), { kind: "scene", projectId: one.scene.id, paid: true });
     await settleSession(db, id); // the webhook, arriving second
-    const [row] = await db.select().from(projects).where(eq(projects.id, two.scene.id));
+    const [row] = await db.select().from(projects).where(eq(projects.id, one.scene.id));
     assert.equal(row.unlockedHow, "paid");
     const rows = await db.select().from(payments);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].status, "paid");
     assert.equal(rows[0].amountCents, 3900);
+    assert.deepEqual(await unlock(one.scene.id), { unlocked: true, how: "paid" }, "unlocking again changes nothing");
   });
 
   test("the webhook only acts on events Stripe itself has", async () => {
-    await unlock((await sceneWithCut("Free")).scene.id);
     const { scene } = await sceneWithCut("Paid");
     const page = await unlock(scene.id);
     assert.ok(!page.unlocked);
@@ -133,7 +128,7 @@ describe("plans", () => {
 
     await syncSubscription(db, subscription("canceled"));
     const [after] = await db.select().from(accounts).where(eq(accounts.id, ACCT));
-    assert.equal(after.plan, "free", "the free scene was never used, so it's still there");
+    assert.equal(after.plan, "indie", "back to paying per scene");
   });
 
   test("Studio's extra scenes are $25", async () => {
@@ -151,7 +146,6 @@ describe("plans", () => {
 describe("Topaz 4K", () => {
   test("paid on Stripe's page first (twice what it costs us), then started once", async () => {
     const { scene, cut } = await sceneWithCut("Four K", 90);
-    await unlock(scene.id);
     await assert.rejects(payForTopaz(db, { accountId: ACCT, projectId: scene.id, sceneName: "Four K", email: WHO, origin: ORIGIN }), /Make the final first/, "nobody pays before it can start");
     await db.insert(finals).values({ cutId: cut.id, projectId: scene.id, kind: "original", status: "done", width: 1920, height: 1080 });
 

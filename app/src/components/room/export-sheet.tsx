@@ -161,8 +161,8 @@ export function ExportSheet({
 }
 
 /**
- * Before the first export: unlocking the scene. Free (the account's first scene), one of the plan's scenes this
- * month, or paid for on Stripe's page (Loupe never sees the card), and back here unlocked.
+ * Before the first export: unlocking the scene. One of the plan's scenes this month, or paid for on Stripe's page
+ * (Loupe never sees the card), and back here unlocked.
  */
 function Unlock({ sceneId, billing, onUnlocked }: { sceneId: number; billing: SceneBilling; onUnlocked: () => unknown }) {
   const [busy, setBusy] = useState(false);
@@ -184,11 +184,9 @@ function Unlock({ sceneId, billing, onUnlocked }: { sceneId: number; billing: Sc
   return (
     <div className="final-box unlock">
       <div>
-        <b>{next.kind === "free" ? "Your first scene is free" : next.kind === "plan" ? `Included in ${next.plan === "pro" ? "Pro" : "Studio"}` : `Export this scene · $${next.cents / 100}`}</b>
+        <b>{next.kind === "plan" ? `Included in ${next.plan === "pro" ? "Pro" : "Studio"}` : `Export this scene · $${next.cents / 100}`}</b>
         <small>
-          {next.kind === "free"
-            ? "Export it now: the final file from your camera originals, and the timeline for Premiere Pro or DaVinci Resolve."
-            : next.kind === "plan"
+          {next.kind === "plan"
               ? `${next.left} of your ${next.plan === "pro" ? 10 : 60} scenes left this month. The final file, and the timeline for Premiere Pro or DaVinci Resolve.`
               : "Once, for this scene: the final file from your camera originals, and the timeline for Premiere Pro or DaVinci Resolve. Make new versions and export again any time."}
         </small>

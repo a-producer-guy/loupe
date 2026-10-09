@@ -8,8 +8,9 @@ import { requestTopaz, topazPrice } from "@/lib/footage/finals";
 // Payments (Guy, Oct 9: "so we can actually charge people"). Loupe never sees a card: every payment happens on
 // Stripe's own page (Checkout), and changing a card or cancelling on Stripe's billing page (the customer portal).
 //
-// Exporting is what's paid for. A scene is unlocked for export once: the account's first scene is free; Pro and
-// Studio include scenes each month (10 and 60); every other scene is paid for on its own ($39, or $25 on Studio).
+// Exporting is what's paid for: cutting and directing are free, exporting never is (Guy, Oct 9). A scene is unlocked
+// for export once: Pro and Studio include scenes each month (10 and 60); every other scene is paid for on its own
+// ($39, or $25 on Studio).
 // Topaz 4K is paid for when it's asked for. Stripe tells us a payment went through two ways, whichever comes first:
 // the person coming back from Stripe's page, and Stripe's webhook. Both run the same idempotent code, which checks
 // with Stripe itself, so nothing is unlocked on someone's word.
@@ -70,15 +71,15 @@ async function customerOf(db: Db, account: Account, email: string): Promise<stri
   return (await accountOf(db, account.id)).stripeCustomerId!;
 }
 
-export type Unlock = { unlocked: true; how: "free" | "plan" | "paid" } | { unlocked: false; url: string };
+export type Unlock = { unlocked: true; how: "plan" | "paid" } | { unlocked: false; url: string };
 
 export type SceneBilling = {
   unlocked: boolean;
-  /** How the next unlock goes: free (first scene), included (in the plan's month), or the price to pay, in cents. */
-  next: { kind: "free" } | { kind: "plan"; left: number; plan: "pro" | "studio" } | { kind: "pay"; cents: number };
+  /** How the next unlock goes: included (in the plan's month), or the price to pay, in cents. */
+  next: { kind: "plan"; left: number; plan: "pro" | "studio" } | { kind: "pay"; cents: number };
 };
 
-/** What exporting this scene takes: nothing (unlocked), the free scene, one of the plan's, or a price. */
+/** What exporting this scene takes: nothing (unlocked), one of the plan's scenes, or a price. */
 export async function sceneBilling(db: Db, accountId: number, projectId: number): Promise<SceneBilling> {
   const [scene] = await db.select({ unlockedAt: projects.unlockedAt }).from(projects).where(eq(projects.id, projectId));
   const account = await accountOf(db, accountId);
@@ -86,7 +87,6 @@ export async function sceneBilling(db: Db, accountId: number, projectId: number)
 }
 
 async function nextUnlock(db: Db, account: Account): Promise<SceneBilling["next"]> {
-  if (account.plan === "free") return { kind: "free" };
   const plan = subscribed(account);
   if (plan) {
     const used = await planScenesUsed(db, account);
@@ -106,7 +106,7 @@ async function planScenesUsed(db: Db, account: Account): Promise<number> {
   return n;
 }
 
-async function markUnlocked(db: Db, projectId: number, how: "free" | "plan" | "paid"): Promise<boolean> {
+async function markUnlocked(db: Db, projectId: number, how: "plan" | "paid"): Promise<boolean> {
   const [row] = await db
     .update(projects)
     .set({ unlockedAt: new Date(), unlockedHow: how })
@@ -116,22 +116,15 @@ async function markUnlocked(db: Db, projectId: number, how: "free" | "plan" | "p
 }
 
 /**
- * Unlocks a scene for export: free (the account's first), one of the plan's scenes, or a Stripe payment page to pay
- * for it (unlocked when Stripe confirms). `origin` is where to come back to.
+ * Unlocks a scene for export: one of the plan's scenes, or a Stripe payment page to pay for it (unlocked when Stripe
+ * confirms). `origin` is where to come back to.
  */
 export async function unlockScene(db: Db, input: { accountId: number; projectId: number; sceneName: string; email: string; origin: string }): Promise<Unlock> {
   const [scene] = await db.select({ unlockedAt: projects.unlockedAt, unlockedHow: projects.unlockedHow }).from(projects).where(eq(projects.id, input.projectId));
   if (!scene) throw new BillingError("That scene doesn't exist.", 404);
-  if (scene.unlockedAt) return { unlocked: true, how: scene.unlockedHow ?? "paid" };
+  if (scene.unlockedAt) return { unlocked: true, how: scene.unlockedHow === "plan" ? "plan" : "paid" };
   const { done } = await sceneCuts(db, input.projectId);
   if (!done?.result) throw new BillingError("Loupe hasn't finished the cut yet. You can export once it has.");
-
-  // The first scene is free: taken in one step, so two scenes unlocked at the same moment can't both have it.
-  const [free] = await db.update(accounts).set({ plan: "indie" }).where(and(eq(accounts.id, input.accountId), eq(accounts.plan, "free"))).returning({ id: accounts.id });
-  if (free) {
-    await markUnlocked(db, input.projectId, "free");
-    return { unlocked: true, how: "free" };
-  }
 
   const account = await accountOf(db, input.accountId);
   const next = await nextUnlock(db, account);
@@ -139,7 +132,7 @@ export async function unlockScene(db: Db, input: { accountId: number; projectId:
     await markUnlocked(db, input.projectId, "plan");
     return { unlocked: true, how: "plan" };
   }
-  const cents = next.kind === "pay" ? next.cents : SCENE_PRICE;
+  const cents = next.cents;
   const session = await stripe().checkout.sessions.create({
     mode: "payment",
     customer: await customerOf(db, account, input.email),
@@ -273,9 +266,8 @@ export async function syncSubscription(db: Db, subscription: Stripe.Subscription
   const key = item?.price.lookup_key;
   const which: "pro" | "studio" | null = key === PLAN_LOOKUP.studio ? "studio" : key === PLAN_LOOKUP.pro ? "pro" : null;
   const live = LIVE.has(subscription.status) && which !== null;
-  // Off a plan, back to paying per scene (still "free" if the free scene was never used).
-  const [usedFree] = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.accountId, account.id), eq(projects.unlockedHow, "free"))).limit(1);
-  const plan: Plan = live ? which! : usedFree ? "indie" : "free";
+  // Off a plan, back to paying per scene.
+  const plan: Plan = live ? which! : "indie";
   await db
     .update(accounts)
     .set({

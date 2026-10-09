@@ -45,7 +45,7 @@ export const PLANS: { id: Exclude<Plan, "free">; name: string; price: string; pe
     price: "$39",
     per: "a scene",
     for: "Shorts, students and actors",
-    points: ["Your first scene free", "A first assembly with a reason for every shot", "Every take of every line, one click away", "Premiere timeline with proxies attached"],
+    points: ["Cut and direct for free, pay when you export", "A first assembly with a reason for every shot", "Every take of every line, one click away", "Premiere timeline with proxies attached"],
     keeps: "Original footage kept 30 days after export",
   },
   {
