@@ -2,7 +2,10 @@ import { beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type TestDb } from "./helpers/db";
-import { accounts, cuts, finals, payments, projects } from "../src/lib/db/schema";
+import { accounts, cuts, finals, fund, payments, projects, proxyJobs, files } from "../src/lib/db/schema";
+import { fundBalance, fundShare, waitingForFund } from "../src/lib/fund";
+import { requestCut, MAX_VERSIONS } from "../src/lib/footage/cuts";
+import { requestFinal } from "../src/lib/footage/finals";
 import { createShoot } from "../src/lib/footage/shoots";
 import { sceneBilling, setStripeForTests, settleSession, syncSubscription, unlockScene, payForTopaz, handleEvent } from "../src/lib/billing";
 
@@ -37,6 +40,7 @@ const fakeStripe = {
   events: {
     retrieve: async (id: string) => {
       if (id === "evt_paid") return { type: "checkout.session.completed", data: { object: { id: [...sessions.keys()].at(-1) } } };
+      if (id === "evt_invoice") return { type: "invoice.paid", data: { object: { id: "in_1", customer: "cus_x", amount_paid: 19900 } } };
       throw new Error("No such event");
     },
   },
@@ -46,13 +50,21 @@ const fakeStripe = {
 const pay = (id: string) => Object.assign(sessions.get(id)!, { status: "complete", payment_status: "paid", payment_intent: "pi_1" });
 const sessionOf = (url: string) => url.split("/").at(-1)!;
 
-async function sceneWithCut(name: string, seconds = 60) {
+async function sceneWithCut(name: string, seconds = 60, voice?: "preview" | "isolated") {
   const scene = await createShoot(db, { accountId: ACCT, name, shootDate: "2026-10-09", createdBy: WHO });
   const [cut] = await db
     .insert(cuts)
-    .values({ projectId: scene.id, status: "done", result: { title: name, seconds, preview: { path: "p.mp4", size: 1 }, files: [], shots: [], render: {} } as never, finishedAt: new Date() })
+    .values({ projectId: scene.id, status: "done", result: { title: name, seconds, preview: { path: "p.mp4", size: 1 }, files: [], shots: [], render: {}, ...(voice ? { voice } : {}) } as never, finishedAt: new Date() })
     .returning();
   return { scene, cut };
+}
+
+/** Two takes with proxies, so new versions can be asked for. */
+async function withTakes(projectId: number, minutes = 30) {
+  for (const n of [1, 2]) {
+    const [f] = await db.insert(files).values({ projectId, path: `Raw/A/T${n}.mov`, storageKey: `k/T${n}.mov`, sizeBytes: 10, isVideo: true, status: "uploaded" }).returning();
+    await db.insert(proxyJobs).values({ fileId: f.id, projectId, rawKey: `r${n}`, proxyKey: `p${n}`, status: "done", previewSizeBytes: 5, media: { durationSeconds: minutes * 30, audioTracks: 1, audioChannels: 2 } });
+  }
 }
 
 const unlock = (projectId: number, sceneName = "S") => unlockScene(db, { accountId: ACCT, projectId, sceneName, email: WHO, origin: ORIGIN });
@@ -98,9 +110,12 @@ describe("paying for exports", () => {
     assert.equal((await sceneBilling(db, ACCT, scene.id)).unlocked, true);
   });
 
-  test("a scene can't be paid for before Loupe has cut it", async () => {
+  test("a scene can't be paid for before its cut is even asked for (but can while it waits in line)", async () => {
     const scene = await createShoot(db, { accountId: ACCT, name: "Empty", shootDate: "2026-10-09", createdBy: WHO });
-    await assert.rejects(unlock(scene.id), /hasn't finished the cut/);
+    await assert.rejects(unlock(scene.id), /hasn't started on this scene/);
+    await db.insert(cuts).values({ projectId: scene.id });
+    const page = await unlock(scene.id);
+    assert.ok(!page.unlocked && page.url);
   });
 });
 
@@ -164,3 +179,57 @@ describe("Topaz 4K", () => {
     assert.equal(sessions.size, 1);
   });
 });
+
+describe("always in the black", () => {
+  test("half of every sale, after Stripe's fee, goes into the free-cutting fund, once", async () => {
+    assert.equal(await fundBalance(db), 30000, "the launch budget");
+    assert.equal(fundShare(3900), 1878);
+    const { scene } = await sceneWithCut("Sold");
+    const page = await unlock(scene.id);
+    assert.ok(!page.unlocked);
+    pay(sessionOf(page.url));
+    await settleSession(db, sessionOf(page.url));
+    await settleSession(db, sessionOf(page.url));
+    assert.equal(await fundBalance(db), 30000 + 1878);
+    // A plan's month paid: half of it too, once.
+    await db.update(accounts).set({ stripeCustomerId: "cus_x" }).where(eq(accounts.id, ACCT));
+    await handleEvent(db, "evt_invoice");
+    await handleEvent(db, "evt_invoice");
+    assert.equal(await fundBalance(db), 30000 + 1878 + fundShare(19900));
+  });
+
+  test("a free cut waits when the fund can't cover the most it can cost; paid scenes never wait", async () => {
+    const scene = await createShoot(db, { accountId: ACCT, name: "Free", shootDate: "2026-10-09", createdBy: WHO });
+    await withTakes(scene.id, 30); // 30 minutes: 50¢ + 30 × 7¢ = $2.60
+    await db.insert(cuts).values({ projectId: scene.id });
+    assert.equal(await waitingForFund(db, scene.id), false, "$300 covers it");
+    await db.insert(fund).values({ amountCents: -29800, kind: "adjust", ref: "test:drain" });
+    assert.equal(await waitingForFund(db, scene.id), true, "$2 doesn't");
+    await db.update(projects).set({ unlockedAt: new Date(), unlockedHow: "paid" }).where(eq(projects.id, scene.id));
+    assert.equal(await waitingForFund(db, scene.id), false);
+  });
+
+  test("paid for a free preview: Loupe makes it again with the studio sound, and export waits for it", async () => {
+    const { scene } = await sceneWithCut("Preview", 60, "preview");
+    await withTakes(scene.id);
+    await db.insert(finals).values({ cutId: (await db.select().from(cuts).where(eq(cuts.projectId, scene.id)))[0].id, projectId: scene.id, kind: "original", status: "failed" });
+    await assert.rejects(requestFinal(db, scene.id, WHO), /finishing the studio sound/);
+    const page = await unlock(scene.id);
+    assert.ok(!page.unlocked);
+    pay(sessionOf(page.url));
+    await settleSession(db, sessionOf(page.url));
+    const rows = await db.select().from(cuts).where(eq(cuts.projectId, scene.id));
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1].status, "waiting", "the studio-sound version is on its way");
+  });
+
+  test("a scene has at most 30 made versions; going back to one doesn't count", async () => {
+    const { scene } = await sceneWithCut("Busy");
+    await withTakes(scene.id);
+    for (let i = 1; i < MAX_VERSIONS; i++) await db.insert(cuts).values({ projectId: scene.id, status: "done", result: { title: "v", restoredFrom: i === 1 ? 1 : undefined } as never });
+    await requestCut(db, scene.id, WHO, {});
+    await db.update(cuts).set({ status: "done" }).where(eq(cuts.status, "waiting"));
+    await assert.rejects(requestCut(db, scene.id, WHO, {}), /30 versions/);
+  });
+});
+

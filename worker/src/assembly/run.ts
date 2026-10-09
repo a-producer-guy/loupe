@@ -73,6 +73,9 @@ export type RunContext = {
 
 export type AssemblyResult = {
   title: string;
+  /** How the dialogue was cleaned: the studio voice isolation (paid), Loupe's own cleanup (a free preview), or as
+   *  recorded with filters only (a note asked for it). */
+  voice?: "isolated" | "preview" | "standard";
   fromTakes: boolean;
   scriptId: number | null;
   scriptTitle: string | null;
@@ -183,7 +186,7 @@ export async function makeAssembly(
   shoot: Shoot,
   library: LibraryScript[],
   corrections: Corrections,
-  { denoise = "light", direction = {} }: { denoise?: Denoise; direction?: Direction } = {},
+  { denoise = "light", direction = {}, isolate = true }: { denoise?: Denoise; direction?: Direction; isolate?: boolean } = {},
 ): Promise<{ result: AssemblyResult; files: AssemblyFile[] }> {
   const { tools, signal, log } = ctx;
   const dir = ctx.workDir;
@@ -337,7 +340,9 @@ export async function makeAssembly(
   log(`Dialogue: ${used.size} takes, Broadcast, ${denoise} noise reduction; room tone at ${room.level} dB from ${room.pieces > 0 ? `${room.pieces} pauses` : "the room's own colour"}.`);
   // Then the voice isolated from everything else in every line (Guy, Oct 6), unless a note asked for the filters alone.
   // After the room tone, which is made from the takes' own pauses and lies under the lines.
-  if (direction.clean !== "standard") {
+  // Free cuts are previews (Guy, Oct 9): Loupe's own cleanup; the voice is isolated once the scene is paid for.
+  const voice: "isolated" | "preview" | "standard" = direction.clean === "standard" ? "standard" : isolate ? "isolated" : "preview";
+  if (voice === "isolated") {
     let isolated = 0;
     let reused = 0;
     await inBatches([...cleaned.keys()], 3, async (take) => {
@@ -566,6 +571,7 @@ export async function makeAssembly(
     takes: scene.takes.map((t) => ({ take: t.take, path: t.path, found: scene.found[t.take] ?? null, setup: t.setup, used: used.has(t.take) || cut.video.some((p) => p.take === t.take) })),
     lines: cut.units.map((u) => ({ who: u.who, text: u.text })),
     subs,
+    voice,
     dropped: cut.dropped,
     jumps: cut.jumps,
     heard,

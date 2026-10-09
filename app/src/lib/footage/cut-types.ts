@@ -71,6 +71,8 @@ export type CutResult = {
   performances?: Record<string, string>;
   /** How to build this version again from the camera originals (versions from Oct 8 on): the final file needs it. */
   render?: { seconds: number };
+  /** How the dialogue was cleaned: studio voice isolation (paid), Loupe's own cleanup (a free preview), or filters only. */
+  voice?: "isolated" | "preview" | "standard";
   /** Where this version's package sits in the scene's folder ("Loupe Cut/v12"; older versions: "Loupe Cut"). */
   folder?: string;
   /** A version made by going back to an earlier one: which. */
@@ -142,6 +144,8 @@ export type CutState = {
   steps: readonly { key: string; label: string }[];
   ready: number;
   script: { id: number; title: string; roles: string[] } | null;
+  /** A free version waiting for the free-cutting fund to refill (lib/fund.ts): "starts soon", or pay to skip the line. */
+  fundWait: boolean;
 };
 
 /** What the cutting room gets from GET /api/shoots/[id]/cut. */
@@ -155,6 +159,10 @@ export type RoomCut = CutState & {
 
 /** One change in a version, in plain words, that can be taken out on its own. */
 export type Change = { key: string; label: string };
+
+/** A version that can be exported: anything but a free preview (its studio sound is made once the scene is paid for). */
+export const exportable = (result: { voice?: string } | null | undefined) => Boolean(result) && result!.voice !== "preview";
+export const FINISHING_SOUND = "Loupe is finishing the studio sound for your export. It'll be ready in a few minutes.";
 
 export type RestoredHow = "picked" | "undo" | "redo";
 

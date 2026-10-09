@@ -28,7 +28,21 @@ export type AssemblyJob = {
   /** The director's notes to Loupe (direction.ts); null when there are none. */
   direction: unknown;
   attempts: number;
+  /** Paid for (the scene unlocked, or a live Pro/Studio plan): the full cut, studio voice isolation included. Free
+   *  cuts are previews, made with Loupe's own cleanup, and the voice is isolated once the scene is paid for. */
+  paid: boolean;
 };
+
+/**
+ * What a free cut takes from the free-cutting fund (loupe_fund): the most it can cost. A first cut is judged, seen and
+ * transcribed take by take, so it grows with the footage; a later version reuses all that (remember.ts) and mostly
+ * pays for Loupe reading the note. Kept on the safe side; lowered once real costs are known.
+ */
+export const FREE_CUT_BASE_CENTS = 50;
+export const FREE_CUT_CENTS_PER_MINUTE = 7;
+export const FREE_VERSION_CENTS = 50;
+/** One claim at a time decides on the fund, so two workers can't both spend its last dollars. */
+const FUND_LOCK = 7_406_001;
 
 /** Two tries, then "failed" with the reason on the shoot page. */
 export const MAX_ATTEMPTS = 2;
@@ -41,6 +55,7 @@ const toJob = (row: Record<string, unknown>): AssemblyJob => ({
   coverage: (row.coverage as AssemblyJob["coverage"]) ?? null,
   direction: row.direction ?? null,
   attempts: Number(row.attempts),
+  paid: row.paid === true,
 });
 
 /**
@@ -48,21 +63,46 @@ const toJob = (row: Record<string, unknown>): AssemblyJob => ({
  * last cut started longest ago goes first, so one account dropping ten scenes doesn't hold up everyone else.
  */
 export async function claimAssembly(sql: Sql, workerId: string): Promise<AssemblyJob | null> {
-  const rows = await sql`
-    update loupe_cuts c
-       set status = 'working', attempts = c.attempts + 1, locked_by = ${workerId}, locked_at = now(),
-           started_at = coalesce(c.started_at, now()), step = 'listening', error = null
-     where c.id = (
-       select w.id from loupe_cuts w join loupe_projects p on p.id = w.project_id
-        where w.status = 'waiting'
-          -- One version at a time per scene: a queued request waits for the one being made.
-          and not exists (select 1 from loupe_cuts x where x.project_id = w.project_id and x.status = 'working')
-        order by (select max(x.started_at) from loupe_cuts x join loupe_projects q on q.id = x.project_id
-                   where q.account_id = p.account_id and x.id <> w.id) asc nulls first, w.id
-        limit 1
-        for update of w skip locked)
-    returning c.id, c.project_id, c.script_id, c.lead_role, c.coverage, c.direction, c.attempts`;
-  return rows[0] ? toJob(rows[0]) : null;
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${FUND_LOCK})`;
+    const [{ balance }] = await tx`select coalesce(sum(amount_cents), 0)::int as balance from loupe_fund`;
+    // Paid work always goes; a free cut only when the fund holds the most it can cost (Guy, Oct 9: always in the
+    // black). A free cut already paid for from the fund (a second try) costs nothing more.
+    const [next] = await tx`
+      select w.id, z.paid, z.cost from loupe_cuts w
+        join loupe_projects p on p.id = w.project_id
+        join loupe_accounts a on a.id = p.account_id
+        cross join lateral (
+          select (p.unlocked_at is not null
+                  or (a.plan in ('pro', 'studio') and a.subscription_status in ('active', 'trialing', 'past_due'))) as paid,
+                 case when exists (select 1 from loupe_fund f where f.ref = 'cut:' || w.id) then 0
+                      when exists (select 1 from loupe_cuts d where d.project_id = w.project_id and d.status = 'done') then ${FREE_VERSION_CENTS}
+                      else ${FREE_CUT_BASE_CENTS} + ceil(${FREE_CUT_CENTS_PER_MINUTE} * coalesce(
+                             (select sum((j.media->>'durationSeconds')::float8) from loupe_proxy_jobs j where j.project_id = w.project_id), 0) / 60)::int
+                 end as cost) z
+       where w.status = 'waiting'
+         -- One version at a time per scene: a queued request waits for the one being made.
+         and not exists (select 1 from loupe_cuts x where x.project_id = w.project_id and x.status = 'working')
+         and (z.paid or z.cost <= ${balance})
+       order by (select max(x.started_at) from loupe_cuts x join loupe_projects q on q.id = x.project_id
+                  where q.account_id = p.account_id and x.id <> w.id) asc nulls first, w.id
+       limit 1
+       for update of w skip locked`;
+    if (!next) return null;
+    const [row] = await tx`
+      update loupe_cuts c
+         set status = 'working', attempts = c.attempts + 1, locked_by = ${workerId}, locked_at = now(),
+             started_at = coalesce(c.started_at, now()), step = 'listening', error = null
+       where c.id = ${next.id}
+      returning c.id, c.project_id, c.script_id, c.lead_role, c.coverage, c.direction, c.attempts`;
+    if (!next.paid && Number(next.cost) > 0) {
+      await tx`
+        insert into loupe_fund (amount_cents, kind, ref, account_id, project_id)
+        select ${-Number(next.cost)}, 'free_cut', ${`cut:${next.id}`}, p.account_id, p.id from loupe_projects p where p.id = ${row.project_id}
+        on conflict (ref) do nothing`;
+    }
+    return toJob({ ...row, paid: next.paid });
+  });
 }
 
 /**
@@ -363,7 +403,7 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
       shoot,
       library,
       { scriptId: job.script_id ?? own, client: job.lead_role, coverage: job.coverage },
-      { direction },
+      { direction, isolate: job.paid },
     );
     for (const f of files) {
       const key = `${folder}/${f.path}`;

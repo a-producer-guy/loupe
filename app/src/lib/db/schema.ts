@@ -496,3 +496,25 @@ export const payments = pgTable(
     appAccess(),
   ],
 ).enableRLS();
+
+export const FUND_KINDS = ["start", "sale", "plan", "free_cut", "adjust"] as const;
+
+/**
+ * The free-cutting fund (Guy, Oct 9: "I need to be in the black always"). Free cuts are paid for by sales: every
+ * sale puts half of what it brings in (after Stripe's fee) in, every free cut takes out the most it can cost, and a
+ * free cut only starts when the fund holds that much. It started with Guy's launch budget. One row per movement; the
+ * balance is the sum. `ref` makes each movement happen once (a payment, an invoice, a cut).
+ */
+export const fund = pgTable(
+  "loupe_fund",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    amountCents: integer("amount_cents").notNull(),
+    kind: text("kind", { enum: FUND_KINDS }).notNull(),
+    ref: text("ref").notNull().unique(),
+    accountId: bigint("account_id", { mode: "number" }).references(() => accounts.id),
+    projectId: bigint("project_id", { mode: "number" }).references(() => projects.id),
+    createdAt: createdAt(),
+  },
+  (t) => [check("loupe_fund_kind_valid", sql`${t.kind} in ('start', 'sale', 'plan', 'free_cut', 'adjust')`), index("loupe_fund_created_idx").on(t.createdAt), appAccess()],
+).enableRLS();

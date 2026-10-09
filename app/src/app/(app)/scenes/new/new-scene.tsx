@@ -17,10 +17,10 @@ type Step = { kind: "waiting" } | { kind: "reading"; found: number } | { kind: "
  * "Drop your scene." The whole page takes the shoot folder: Loupe names the scene after it, starts
  * uploading and opens the scene, with nothing to fill in first.
  */
-export function NewScene({ planNeeded, free }: { planNeeded: boolean; free: boolean }) {
+export function NewScene({ planNeeded, free }: { planNeeded: string | null; free: boolean }) {
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
-  const [step, setStep] = useState<Step>(planNeeded ? { kind: "error", message: "You have 3 scenes waiting to be exported. Export one, or choose Pro, to start another.", planNeeded: true } : { kind: "waiting" });
+  const [step, setStep] = useState<Step>(planNeeded ? { kind: "error", message: planNeeded, planNeeded: true } : { kind: "waiting" });
   const depth = useRef(0);
   const picker = useRef<HTMLInputElement>(null);
   const busy = step.kind === "reading" || step.kind === "starting";

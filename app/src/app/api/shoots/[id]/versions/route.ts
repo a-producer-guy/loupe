@@ -6,6 +6,7 @@ import { ownedShoot } from "@/lib/footage/access";
 import { CutError } from "@/lib/footage/cuts";
 import { redoVersion, removeChange, restoreVersion, sceneVersions, undoVersion } from "@/lib/footage/versions";
 import { signView } from "@/lib/storage";
+import { finishForExport } from "@/lib/billing";
 
 // A scene's versions: the list (each named by what changed), what's in the current cut, and going back, undo/redo,
 // or taking one change out.
@@ -39,9 +40,11 @@ export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/ve
       await removeChange(db, scene.id, body.key, member.email);
       return Response.json({ instant: false });
     }
-    if (body.action === "undo") return Response.json(await undoVersion(db, scene.id, member.email));
-    if (body.action === "redo") return Response.json(await redoVersion(db, scene.id, member.email));
-    return Response.json(await restoreVersion(db, scene.id, body.id, member.email));
+    const back =
+      body.action === "undo" ? await undoVersion(db, scene.id, member.email) : body.action === "redo" ? await redoVersion(db, scene.id, member.email) : await restoreVersion(db, scene.id, body.id, member.email);
+    // Back to a free preview on a scene that's paid for: its studio sound is made for the export.
+    if (scene.unlockedAt) await finishForExport(db, scene.id, member.email);
+    return Response.json(back);
   } catch (error) {
     if (error instanceof CutError) return jsonError(error.status, error.message);
     throw error;

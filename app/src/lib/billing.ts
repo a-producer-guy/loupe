@@ -2,7 +2,8 @@ import Stripe from "stripe";
 import { and, count, eq, gte, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { accounts, payments, projects, type Plan } from "@/lib/db/schema";
-import { CutError, sceneCuts } from "@/lib/footage/cuts";
+import { CutError, requestCut, sceneCuts } from "@/lib/footage/cuts";
+import { depositSale } from "@/lib/fund";
 import { requestTopaz, topazPrice } from "@/lib/footage/finals";
 
 // Payments (Guy, Oct 9: "so we can actually charge people"). Loupe never sees a card: every payment happens on
@@ -123,13 +124,14 @@ export async function unlockScene(db: Db, input: { accountId: number; projectId:
   const [scene] = await db.select({ unlockedAt: projects.unlockedAt, unlockedHow: projects.unlockedHow }).from(projects).where(eq(projects.id, input.projectId));
   if (!scene) throw new BillingError("That scene doesn't exist.", 404);
   if (scene.unlockedAt) return { unlocked: true, how: scene.unlockedHow === "plan" ? "plan" : "paid" };
-  const { done } = await sceneCuts(db, input.projectId);
-  if (!done?.result) throw new BillingError("Loupe hasn't finished the cut yet. You can export once it has.");
+  // Paying can come before the cut is made (to skip the line for a free cut), not before it's asked for.
+  const { latest } = await sceneCuts(db, input.projectId);
+  if (!latest) throw new BillingError("Loupe hasn't started on this scene yet. You can pay once the footage is in.");
 
   const account = await accountOf(db, input.accountId);
   const next = await nextUnlock(db, account);
   if (next.kind === "plan") {
-    await markUnlocked(db, input.projectId, "plan");
+    if (await markUnlocked(db, input.projectId, "plan")) await finishForExport(db, input.projectId, input.email);
     return { unlocked: true, how: "plan" };
   }
   const cents = next.cents;
@@ -212,8 +214,12 @@ export async function settleSession(db: Db, sessionId: string): Promise<{ kind: 
     .set({ status: "paid", paidAt: new Date(), stripePaymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : (session.payment_intent?.id ?? null) })
     .where(and(eq(payments.stripeSessionId, session.id), sql`${payments.status} <> 'paid'`))
     .returning();
-  // Given once, by whichever arrives first.
-  if (row?.kind === "scene") await markUnlocked(db, row.projectId, "paid");
+  // Given once, by whichever arrives first: the scene, and half of what it brought in to the free-cutting fund.
+  if (row?.kind === "scene") {
+    await markUnlocked(db, row.projectId, "paid");
+    await depositSale(db, { cents: row.amountCents, ref: `payment:${row.id}`, kind: "sale", accountId: row.accountId, projectId: row.projectId });
+    await finishForExport(db, row.projectId, row.createdBy ?? "stripe");
+  }
   if (row?.kind === "topaz") {
     await requestTopaz(db, row.projectId, row.createdBy ?? "stripe").catch((error) => {
       // Paid, but it can't start (the version changed?): it stays paid, and "Make it 4K" starts it without paying again.
@@ -280,6 +286,17 @@ export async function syncSubscription(db: Db, subscription: Stripe.Subscription
     .where(eq(accounts.id, account.id));
 }
 
+/**
+ * A scene just paid for: if its newest version is a free preview (Loupe's own sound cleanup), Loupe makes it again
+ * with the studio voice isolation, for the export. Everything else the preview worked out is reused (worker:
+ * remember.ts), so it's quick.
+ */
+export async function finishForExport(db: Db, projectId: number, by: string): Promise<void> {
+  const { done, waiting } = await sceneCuts(db, projectId);
+  if (done?.result?.voice !== "preview" || waiting) return;
+  await requestCut(db, projectId, by, {}).catch((error) => console.error(`Couldn't finish scene ${projectId} for export:`, error));
+}
+
 /** What Stripe sent to the webhook, fetched back from Stripe by its id (so only real events count) and acted on. */
 export async function handleEvent(db: Db, eventId: string): Promise<void> {
   const event = await stripe().events.retrieve(eventId);
@@ -289,6 +306,14 @@ export async function handleEvent(db: Db, eventId: string): Promise<void> {
     case "checkout.session.expired":
       await settleSession(db, event.data.object.id);
       break;
+    case "invoice.paid": {
+      // A plan's month paid: half of it into the free-cutting fund.
+      const invoice = event.data.object;
+      const customer = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+      const [account] = customer ? await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.stripeCustomerId, customer)) : [];
+      if (invoice.amount_paid > 0) await depositSale(db, { cents: invoice.amount_paid, ref: `invoice:${invoice.id}`, kind: "plan", accountId: account?.id ?? null });
+      break;
+    }
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted":

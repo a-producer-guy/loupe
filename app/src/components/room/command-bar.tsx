@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { whatChanged, type CutView } from "@/lib/footage/cut-types";
+import { FUND_WAIT, SkipLine } from "./skip-line";
 import { Loupe, type LoupeDept } from "@/components/loupe/loupe";
 import type { RoomCut } from "@/lib/footage/cut-types";
 import { scopeLabel, type Scope } from "./suite";
@@ -63,6 +64,7 @@ const placeholder = (dept: Dept, scope: Scope) => {
 };
 
 export function CommandBar({
+  sceneId,
   cut,
   dept,
   onDept,
@@ -73,6 +75,7 @@ export function CommandBar({
   onUndo,
   busy,
 }: {
+  sceneId: number;
   cut: RoomCut;
   dept: Dept;
   onDept: (d: Dept) => void;
@@ -177,7 +180,7 @@ export function CommandBar({
           </div>
         </div>
       )}
-      {working && !menu && !about && <Status cut={cut} />}
+      {working && !menu && !about && <Status cut={cut} sceneId={sceneId} />}
       {reply && !about && !menu && !(focused && !text) && (
         <div className="reply" role="status">
           <b>Loupe</b>
@@ -353,7 +356,7 @@ const asked = (v: CutView | null) => {
  * Always there until it's done, so nobody wonders whether anything is happening (Guy, Oct 7). The tab's title says
  * so too, for when the page is in the background.
  */
-function Status({ cut }: { cut: RoomCut }) {
+function Status({ cut, sceneId }: { cut: RoomCut; sceneId: number }) {
   const [now, setNow] = useState(() => Date.now());
   // Ticks the clock, and keeps the tab's title saying so (the page's own title can come back over it).
   useEffect(() => {
@@ -397,7 +400,13 @@ function Status({ cut }: { cut: RoomCut }) {
           <>
             <b>Up next: </b>
             <span>“{queued}”</span>
-            <small>Starting in a moment</small>
+            {cut.fundWait ? (
+              <small>
+                {FUND_WAIT} <SkipLine sceneId={sceneId} className="textlink" />
+              </small>
+            ) : (
+              <small>Starting in a moment</small>
+            )}
           </>
         )}
         {doing && next && (

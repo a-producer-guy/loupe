@@ -32,6 +32,7 @@ const EVENTS = [
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
+  "invoice.paid",
 ];
 
 async function main() {

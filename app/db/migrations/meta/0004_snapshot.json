@@ -1,5 +1,5 @@
 {
-  "id": "b2d8e198-320c-44ec-9890-d02b97f6eb55",
+  "id": "1fab07a8-121b-42ec-9f85-db67473215e7",
   "prevId": "5687d33b-0c5e-4ace-ae9c-5909a3853070",
   "version": "7",
   "dialect": "postgresql",
@@ -891,6 +891,140 @@
         "loupe_finals_status_valid": {
           "name": "loupe_finals_status_valid",
           "value": "\"loupe_finals\".\"status\" in ('waiting', 'working', 'done', 'failed')"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.loupe_fund": {
+      "name": "loupe_fund",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "loupe_fund_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ref": {
+          "name": "ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "loupe_fund_created_idx": {
+          "name": "loupe_fund_created_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "loupe_fund_account_id_loupe_accounts_id_fk": {
+          "name": "loupe_fund_account_id_loupe_accounts_id_fk",
+          "tableFrom": "loupe_fund",
+          "tableTo": "loupe_accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "loupe_fund_project_id_loupe_projects_id_fk": {
+          "name": "loupe_fund_project_id_loupe_projects_id_fk",
+          "tableFrom": "loupe_fund",
+          "tableTo": "loupe_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "loupe_fund_ref_unique": {
+          "name": "loupe_fund_ref_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ref"
+          ]
+        }
+      },
+      "policies": {
+        "loupe_app_all": {
+          "name": "loupe_app_all",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "loupe_app"
+          ],
+          "using": "true",
+          "withCheck": "true"
+        }
+      },
+      "checkConstraints": {
+        "loupe_fund_kind_valid": {
+          "name": "loupe_fund_kind_valid",
+          "value": "\"loupe_fund\".\"kind\" in ('start', 'sale', 'plan', 'free_cut', 'adjust')"
         }
       },
       "isRLSEnabled": true

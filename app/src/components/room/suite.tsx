@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Loupe } from "@/components/loupe/loupe";
 import type { LineInTake, RoomCut, Shot } from "@/lib/footage/cut-types";
 import type { ViewerNote } from "@/lib/footage/share";
+import { FUND_WAIT, SkipLine } from "./skip-line";
 
 // Screen 3 of the mockup, the suite: the cut on the left with its filmstrip, and the script on the right as the
 // editing surface. Each line carries its shot, the reason for it, and on hover the tools for that line; "Other takes"
@@ -66,6 +67,7 @@ function useSubtitles(): [boolean, (on: boolean) => void] {
 }
 
 export function Suite({
+  sceneId,
   cut,
   title,
   stills,
@@ -78,6 +80,7 @@ export function Suite({
   onNote,
   busy,
 }: {
+  sceneId: number;
   cut: RoomCut;
   /** Notes viewers left on the share link, and what to do with one (pass it to Loupe, or put it aside). */
   notes?: ViewerNote[];
@@ -220,7 +223,7 @@ export function Suite({
   const scoped = scope.kind !== "scene";
   const showMarks = dept !== "preview";
 
-  if (!result) return <Cutting cut={cut} stills={stills} title={title} />;
+  if (!result) return <Cutting cut={cut} stills={stills} title={title} sceneId={sceneId} />;
 
   const subtitle = !subsOn ? null : sub ? (
     <div className="sub">
@@ -717,7 +720,7 @@ function WorkingVeil({ cut }: { cut: RoomCut }) {
 }
 
 /** The first cut being made: the takes as a mosaic, and Loupe saying what it's doing. */
-function Cutting({ cut, stills, title }: { cut: RoomCut; stills: string[]; title: string }) {
+function Cutting({ cut, stills, title, sceneId }: { cut: RoomCut; stills: string[]; title: string; sceneId: number }) {
   const step = Math.max(0, cut.steps.findIndex((s) => s.key === cut.latest?.step));
   const waiting = !cut.latest || cut.latest.status === "waiting";
   return (
@@ -743,7 +746,13 @@ function Cutting({ cut, stills, title }: { cut: RoomCut; stills: string[]; title
           </div>
         </div>
         <div className="underpic">
-          <span className="now">Loupe is cutting the scene. It usually takes 5 to 20 minutes; you can close this page and come back.</span>
+          {cut.fundWait ? (
+            <span className="now fund-wait">
+              {FUND_WAIT} <SkipLine sceneId={sceneId} className="textlink" />
+            </span>
+          ) : (
+            <span className="now">Loupe is cutting the scene. It usually takes 5 to 20 minutes; you can close this page and come back.</span>
+          )}
         </div>
       </div>
       <div className="scriptcol">

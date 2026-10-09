@@ -1,4 +1,5 @@
 import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { waitingForFund } from "@/lib/fund";
 import type { Db } from "@/lib/db/client";
 import { cuts, files, projects, proxyJobs } from "@/lib/db/schema";
 import { sceneScript } from "@/lib/footage/scripts";
@@ -88,6 +89,9 @@ const isUnique = (error: unknown) => String((error as { code?: string }).code ??
  * waiting behind the one being made, and the worker reads them against whatever that one turns out to be
  * (worker/src/assembly/job.ts, queued). Several requests while it's busy join up, in order. Never turned away.
  */
+/** The most versions Loupe makes for one scene. */
+export const MAX_VERSIONS = 30;
+
 async function ask(
   db: Db,
   projectId: number,
@@ -95,6 +99,13 @@ async function ask(
   change: { words: string | null; direction?: (d: Direction) => Direction; leadRole?: string | null; scriptId?: number | null },
 ): Promise<CutView> {
   if ((await takesReady(db, projectId)).ready < 2) throw new CutError("Loupe needs at least two takes with proxies to cut a scene. They're still being made.");
+  // Each version costs Loupe something, so a scene has at most 30 made (going back to a kept one is free). Even all
+  // 30 cost less than the scene's price (Guy, Oct 9: always in the black).
+  const [{ made }] = await db
+    .select({ made: sql<number>`count(*)::int` })
+    .from(cuts)
+    .where(and(eq(cuts.projectId, projectId), sql`${cuts.status} <> 'failed'`, sql`${cuts.result}->>'restoredFrom' is null`));
+  if (made >= MAX_VERSIONS) throw new CutError(`This scene has had ${MAX_VERSIONS} versions, the most Loupe makes for one scene. You can still go back to any of them in the version list.`);
   for (let attempt = 0; attempt < 3; attempt++) {
     const { done, working, waiting } = await sceneCuts(db, projectId);
     const at = new Date().toISOString();
@@ -220,7 +231,12 @@ export function packageFiles(prefix: string, result: CutResult): { path: string;
 /** Everything the scene page needs about its cut (starting the first one, if it's due). */
 export async function cutState(db: Db, projectId: number, prefix: string, by: string | null, sign: (key: string, version?: string, extension?: string) => Promise<string>): Promise<CutState> {
   await startCutIfReady(db, projectId, by);
-  const [{ latest, done, working, waiting, versions }, { ready }, script] = await Promise.all([sceneCuts(db, projectId), takesReady(db, projectId), sceneScript(db, projectId)]);
+  const [{ latest, done, working, waiting, versions }, { ready }, script, fundWait] = await Promise.all([
+    sceneCuts(db, projectId),
+    takesReady(db, projectId),
+    sceneScript(db, projectId),
+    waitingForFund(db, projectId),
+  ]);
   const preview = done?.result ? await sign(`${prefix}/${folderOf(done.result)}/${done.result.preview.path}`, `cut-${done.id}`, "mp4") : null;
-  return { latest, done, working, waiting, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null };
+  return { latest, done, working, waiting, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null, fundWait };
 }

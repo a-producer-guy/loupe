@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DownloadState } from "@/components/shoots/use-download";
 import { Ring } from "@/components/ui/progress";
-import type { CutResult, FinalView } from "@/lib/footage/cut-types";
+import { exportable, FINISHING_SOUND, type CutResult, type FinalView } from "@/lib/footage/cut-types";
 import type { SceneBilling } from "@/lib/billing";
 import { formatBytes } from "@/lib/footage/names";
 
@@ -98,6 +98,15 @@ export function ExportSheet({
           <p className="fine">One moment…</p>
         ) : !billing.unlocked ? (
           <Unlock sceneId={sceneId} billing={billing} onUnlocked={loadBilling} />
+        ) : !exportable(result) ? (
+          // Paid for: the free preview is being made again with the studio sound, for the export.
+          <div className="final-box">
+            <div className="exporting">
+              <Ring value={0.5} size={22} stroke={3} />
+              <span>{FINISHING_SOUND}</span>
+            </div>
+            <p className="fine">You can close this; it&apos;s ready here when you come back.</p>
+          </div>
         ) : (
           <>
             <FinalFile sceneId={sceneId} onAgain={onAgain} />

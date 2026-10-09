@@ -167,6 +167,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
               <Ingest shoot={shoot} cut={cut} progress={progress} inFlight={inFlight} onChoose={choose} onRetry={retry} onAgain={() => void post({ action: "again" })} onScript={addScript} />
             ) : (
               <Suite
+                sceneId={shoot.id}
                 cut={cut}
                 title={shoot.name}
                 stills={shoot.clips.flatMap((c) => (c.thumbUrl ? [c.thumbUrl] : []))}
@@ -183,6 +184,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
           </main>
           {phase === "suite" && (
             <CommandBar
+              sceneId={shoot.id}
               cut={cut}
               dept={dept}
               onDept={setDept}

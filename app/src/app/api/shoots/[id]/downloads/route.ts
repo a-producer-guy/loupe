@@ -6,6 +6,7 @@ import { files, proxyJobs } from "@/lib/db/schema";
 import { ownedShoot } from "@/lib/footage/access";
 import { jsonError, readJson, route, shootIdFrom } from "@/lib/api";
 import { packageFiles, sceneCuts } from "@/lib/footage/cuts";
+import { exportable, FINISHING_SOUND } from "@/lib/footage/cut-types";
 import { lutFileName, lutsUsedBy } from "@/lib/footage/luts";
 import { signDownload } from "@/lib/storage";
 
@@ -36,7 +37,7 @@ export const GET = route(async (_request, ctx: RouteContext<"/api/shoots/[id]/do
   const looks = await lutsUsedBy(db, shoot.id);
   const { done } = await sceneCuts(db, shoot.id);
   // Loupe's cut is what's paid for: only once the scene is unlocked (the footage itself is always theirs).
-  const cut = done?.result && shoot.unlockedAt ? packageFiles(shoot.storagePrefix, done.result) : [];
+  const cut = done?.result && shoot.unlockedAt && exportable(done.result) ? packageFiles(shoot.storagePrefix, done.result) : [];
 
   const inFolder = (key: string) => key.slice(shoot.storagePrefix.length + 1);
   return Response.json({
@@ -71,6 +72,7 @@ export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/do
     const [scene] = [await ownedShoot(db, member, id)];
     if (!scene?.unlockedAt) return jsonError(402, "Unlock this scene to export Loupe's cut.", "unlock-needed");
     const { done } = await sceneCuts(db, id);
+    if (done?.result && !exportable(done.result)) return jsonError(409, FINISHING_SOUND, "finishing");
     const file = scene && done?.result ? packageFiles(scene.storagePrefix, done.result)[body.id - 1] : undefined;
     if (!file) return jsonError(404, "That file isn't available.");
     return Response.json({ url: await signDownload(file.key) });

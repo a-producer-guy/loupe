@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { finals } from "@/lib/db/schema";
 import { CutError, sceneCuts } from "@/lib/footage/cuts";
-import type { FinalView } from "@/lib/footage/cut-types";
+import { exportable, FINISHING_SOUND, type FinalView } from "@/lib/footage/cut-types";
 
 // Final files (Guy, Oct 7: "we need to export the final"): the newest finished version built again from the camera
 // originals at full resolution (worker/src/assembly/final.ts), and, when that's below 4K, a 4K version made with
@@ -52,6 +52,7 @@ export async function requestFinal(db: Db, projectId: number, by: string): Promi
   const { done } = await sceneCuts(db, projectId);
   if (!done?.result) throw new CutError("There's no cut to make a final of yet.");
   if (!done.result.render) throw new CutError("This version was cut before finals existed. Make it again, then export the final.");
+  if (!exportable(done.result)) throw new CutError(FINISHING_SOUND, 409);
   const [existing] = await db
     .select({ status: finals.status })
     .from(finals)

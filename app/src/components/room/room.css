@@ -384,3 +384,8 @@
 .room .vers-tip{padding:8px 10px 6px; margin:4px 0 0; border-top:1px solid var(--hair)}
 .room .reply button.soft{color:#fff; text-decoration:none; background:rgba(255,255,255,.14); padding:1px 9px; border-radius:999px}
 .room .reply button.soft:hover{background:rgba(255,255,255,.24)}
+/* Free cutting busy: the offer to pay and skip the line */
+.room .status .textlink{color:#fff; text-decoration-color:rgba(255,255,255,.5); font-weight:500}
+.room .status .textlink:hover{text-decoration-color:#fff}
+.room .underpic .fund-wait{white-space:normal}
+.room .underpic .fund-wait .textlink{color:var(--ink); font-weight:500}

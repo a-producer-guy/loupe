@@ -41,16 +41,23 @@ export async function ownedLut(db: Db, member: Owner, id: number | null) {
 /**
  * What each plan can have waiting to be exported (uploaded and cut, not yet paid for). Exporting is what's paid for,
  * so pay-as-you-go accounts (free: first scene not used yet; indie: pays per scene) keep a few scenes in progress at
- * once, which caps the cutting and storage given away; Pro and Studio aren't capped.
+ * once, which caps the cutting and storage given away; Pro and Studio keep more.
  */
 export const PLAN_LIMITS: Record<Plan, { scenes: number; bytes: number }> = {
   free: { scenes: 3, bytes: 500e9 },
   indie: { scenes: 3, bytes: 500e9 },
-  pro: { scenes: Infinity, bytes: Infinity },
-  studio: { scenes: Infinity, bytes: Infinity },
+  // Plans: cutting a scene costs Loupe a few dollars, so even plans can't pile up unexported scenes for ever.
+  pro: { scenes: 20, bytes: Infinity },
+  studio: { scenes: 100, bytes: Infinity },
 };
 
-export const WAITING_FULL = "You have 3 scenes waiting to be exported. Export one, or choose Pro, to start another.";
+/** Said when an account has as many scenes waiting to be exported as its plan keeps. */
+export function waitingFull(plan: Plan): string {
+  const n = PLAN_LIMITS[plan].scenes;
+  return plan === "pro" || plan === "studio"
+    ? `You have ${n} scenes waiting to be exported, the most ${plan === "pro" ? "Pro" : "Studio"} keeps. Export one to start another.`
+    : `You have ${n} scenes waiting to be exported. Export one, or choose Pro, to start another.`;
+}
 
 export async function accountPlan(db: Db, accountId: number): Promise<Plan> {
   const [row] = await db.select({ plan: accounts.plan }).from(accounts).where(eq(accounts.id, accountId));
