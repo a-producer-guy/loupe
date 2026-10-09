@@ -5,9 +5,9 @@ import { Loupe, type LoupeMood } from "@/components/loupe/loupe";
 import { Snip } from "./snip";
 
 // The hero's before/after cards, with Loupe getting rid of the "before" himself: he hops onto "3 hours", "$195" and
-// "14 takes" in turn and snips each in half with his scissors; each time the new number pops in. Then he hops back
-// up, waits, and does it again. Runs only while on screen; with less motion asked for, it shows the result and Loupe
-// just watches.
+// "14 takes" in turn and snips each in half with his scissors, a different cut every time; each time the new number
+// pops in. Then he hops back up, waits, and does it again. Runs only while on screen; with less motion asked for, it
+// shows the result and Loupe just watches.
 
 const CARDS: { was: string; now: string; what: string }[] = [
   { was: "3 hours", now: "5–10 min", what: "for a first cut of a 2–3 minute scene. It works while you get a coffee." },
@@ -28,6 +28,8 @@ export function HeroProof() {
   const [hops, setHops] = useState(0);
   const [mood, setMood] = useState<LoupeMood>("idle");
   const [snip, setSnip] = useState(false);
+  // Which time round the act this is: every round, every number is cut a new way.
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     const host = box.current;
@@ -51,7 +53,7 @@ export function HeroProof() {
     // The beats in order, each with how long it plays before the next starts. Each beat is timed from the one
     // before, so a busy moment (the 3D Loupes loading) only delays the act rather than bunching it up.
     const beats: [() => void, number][] = [
-      [() => (setStages(["old", "old", "old"]), setSnip(false), setMood("idle"), go(at(null), false, 0)), 900],
+      [() => (setStages(["old", "old", "old"]), setSnip(false), setMood("idle"), setRound((r) => r + 1), go(at(null), false, 0)), 900],
     ];
     CARDS.forEach((_, i) => {
       beats.push([() => (setMood("think"), go(at(i), true, 650)), 680]);
@@ -111,7 +113,9 @@ export function HeroProof() {
                   }}
                   className={`inline-block text-[15px] transition-colors duration-300 ${hit ? "text-faint" : "text-muted"}`}
                 >
-                  <Snip cut={hit}>{b.was}</Snip>
+                  <Snip cut={hit} seed={round * CARDS.length + i}>
+                    {b.was}
+                  </Snip>
                 </span>
                 <span
                   className={`text-[clamp(30px,3.2vw,40px)] font-light leading-none tracking-[-0.05em] tabular-nums transition-all duration-300 ${s === "done" ? "scale-100 opacity-100" : "scale-75 opacity-0"}`}
