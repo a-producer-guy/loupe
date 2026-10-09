@@ -2,8 +2,9 @@
 
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Snip } from "./snip";
 
-// Everything an assistant editor does by hand before the creative part starts, and how long it takes, struck off
+// Everything an assistant editor does by hand before the creative part starts, and how long it takes, snipped off
 // one by one as the list comes into view: the time adds up, then goes to nothing.
 
 const CHORES: { by: string; mins: number; loupe: string }[] = [
@@ -43,10 +44,12 @@ export function GruntWork() {
               {c.by}
             </span>
             <span
-              className={`text-right text-[13.5px] tabular-nums decoration-tally decoration-2 transition-all duration-500 motion-reduce:transition-none ${on ? "text-faint line-through" : "text-muted"}`}
+              className={`text-right text-[13.5px] tabular-nums transition-colors duration-500 motion-reduce:transition-none ${on ? "text-faint" : "text-muted"}`}
               style={{ transitionDelay: `${i * STEP}ms` }}
             >
-              {hm(c.mins)}
+              <Snip cut={on} delay={i * STEP}>
+                {hm(c.mins)}
+              </Snip>
             </span>
             <span
               className={`col-span-2 flex items-start gap-1.5 text-[13.5px] font-medium text-good transition-all duration-500 motion-reduce:transition-none ${on ? "opacity-100" : "-translate-y-1 opacity-0"}`}
@@ -60,7 +63,11 @@ export function GruntWork() {
       <div className="grid gap-1 bg-text px-5 py-5 text-white sm:px-6">
         <div className="flex items-baseline justify-between gap-4 text-[14px] text-white/60">
           <span>By hand, every scene</span>
-          <s className="tabular-nums decoration-tally decoration-2">{hm(TOTAL)}</s>
+          <span className="tabular-nums">
+            <Snip cut={on} delay={CHORES.length * STEP}>
+              {hm(TOTAL)}
+            </Snip>
+          </span>
         </div>
         <div className="flex items-baseline justify-between gap-4">
           <span className="text-[17px] font-semibold">Grunt work left for you</span>
