@@ -162,6 +162,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
               )}
             </div>
           </header>
+          <FootageNote footage={shoot.footage} onDownload={() => setExporting(true)} />
           <main className="flex min-h-0 flex-1 flex-col">
             {phase === "ingest" ? (
               <Ingest shoot={shoot} cut={cut} progress={progress} inFlight={inFlight} onChoose={choose} onRetry={retry} onAgain={() => void post({ action: "again" })} onScript={addScript} />
@@ -217,3 +218,28 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
     </DropZone>
   );
 }
+
+const dateWords = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+
+/**
+ * The camera originals' date (the footage cleanup, worker/src/cleanup.ts), from the first warning on: until when
+ * they're kept, or that they were removed and how to bring them back. Quiet otherwise.
+ */
+function FootageNote({ footage, onDownload }: { footage: ShootDetail["footage"]; onDownload: () => void }) {
+  if (footage.removedAt)
+    return (
+      <p className="footage-note">
+        The camera files were removed on {dateWords(footage.removedAt)}. Your cuts, timelines and proxies are all here; drop the same cards on this page to bring the originals back.
+      </p>
+    );
+  if (!footage.warned || footage.keep || !footage.until) return null;
+  return (
+    <p className="footage-note">
+      Camera files kept until {dateWords(footage.until)}.{" "}
+      <button type="button" className="textlink" onClick={onDownload}>
+        Download them
+      </button>
+    </p>
+  );
+}
+

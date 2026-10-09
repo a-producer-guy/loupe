@@ -16,6 +16,7 @@ import { loadConfig } from "./config.js";
 import { claimJob, connect, heartbeat, markDone, markFailed, markSkipped, releaseJobs, requeueStale, type Job } from "./jobs.js";
 import { buildThumbnailArgs, makeProxy, PermanentProxyError, runFfmpeg, unsupportedFormatReason } from "./proxy.js";
 import { createStorage } from "./storage.js";
+import { createCleanupStorage, resendMailer, runCleanup, type CleanupMode } from "./cleanup.js";
 
 const config = loadConfig();
 const sql = connect(config.databaseUrl);
@@ -197,6 +198,7 @@ async function main() {
   }
 
   let lastStaleCheck = 0;
+  let lastCleanup = 0;
   while (!stopping) {
     try {
       if (Date.now() - lastStaleCheck > 60_000) {
@@ -204,11 +206,48 @@ async function main() {
         const requeued = await requeueStale(sql);
         if (requeued) log(`Put ${requeued} interrupted job(s) back in the queue.`);
       }
+      if (Date.now() - lastCleanup > 6 * 3_600_000) {
+        lastCleanup = Date.now();
+        void cleanupPass();
+      }
       await fillSlots();
     } catch (error) {
       log(`Couldn't reach the database, trying again shortly: ${error instanceof Error ? error.message : error}`);
     }
     await new Promise((resolve) => setTimeout(resolve, config.pollSeconds * 1000));
+  }
+}
+
+/**
+ * The footage cleanup (cleanup.ts), every 6 hours, by one worker at a time. FOOTAGE_CLEANUP=on (with
+ * CLEANUP_B2_KEY_ID / CLEANUP_B2_APP_KEY and RESEND_API_KEY) sends warnings and takes due files away; otherwise it
+ * only reports.
+ */
+async function cleanupPass() {
+  const mode: CleanupMode = process.env.FOOTAGE_CLEANUP?.trim() === "on" ? "on" : "report";
+  const keyId = process.env.CLEANUP_B2_KEY_ID?.trim();
+  const appKey = process.env.CLEANUP_B2_APP_KEY?.trim();
+  const resend = process.env.RESEND_API_KEY?.trim();
+  const conn = await sql.reserve();
+  try {
+    const [{ mine }] = await conn`select pg_try_advisory_lock(7406002) as mine`;
+    if (!mine) return;
+    try {
+      await runCleanup({
+        sql,
+        mode,
+        // Report mode lists hidden files with the worker's own key; only "on" uses the cleanup key, to hide files.
+        storage: mode === "on" && keyId && appKey ? createCleanupStorage({ ...config.b2, keyId, appKey }) : mode === "report" ? createCleanupStorage(config.b2) : undefined,
+        mail: mode === "on" && resend ? resendMailer(resend) : undefined,
+        log,
+      });
+    } finally {
+      await conn`select pg_advisory_unlock(7406002)`;
+    }
+  } catch (error) {
+    log(`The footage cleanup stopped: ${error instanceof Error ? error.message : error}`);
+  } finally {
+    conn.release();
   }
 }
 

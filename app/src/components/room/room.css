@@ -389,3 +389,5 @@
 .room .status .textlink:hover{text-decoration-color:#fff}
 .room .underpic .fund-wait{white-space:normal}
 .room .underpic .fund-wait .textlink{color:var(--ink); font-weight:500}
+/* The camera originals' kept-until date (the footage cleanup) */
+.room .footage-note{margin:0 24px 8px; padding:8px 12px; border-radius:10px; background:var(--surface); box-shadow:0 0 0 1px var(--hair); font-size:12.5px; color:var(--ink2)}

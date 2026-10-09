@@ -187,7 +187,8 @@ async function registerGroup(tx: Db, project: Project, group: DropGroup, uploade
         uploadedBy,
       });
       registered.push({ path: file.rel, key, size: file.size, state: "upload" });
-    } else if (row.status === "unreadable") {
+    } else if (row.status === "unreadable" || row.status === "removed") {
+      // Couldn't be read last time, or taken away by the footage cleanup: dropped again, it goes up again.
       // Couldn't be read last time, can be now.
       await tx
         .update(files)

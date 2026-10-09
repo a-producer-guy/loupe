@@ -54,6 +54,8 @@ export type ShootSummary = {
   runtimeSeconds: number;
   /** A still from the shoot's first finished clip, for its tile. */
   coverUrl: string | null;
+  /** The camera originals: kept until a date (shown once the owner's been warned), kept for good, or removed. */
+  footage: { until: string | null; warned: boolean; keep: boolean; removedAt: string | null };
 };
 
 export type ClipRow = {
@@ -88,11 +90,12 @@ export type ShootDetail = ShootSummary & {
 
 const emptyFiles = (): FileCounts => ({ total: 0, uploaded: 0, problems: 0, bytesTotal: 0, bytesUploaded: 0 });
 
+// Files the footage cleanup took away aren't counted: the scene isn't "missing" them (footage says they're gone).
 const fileCountColumns = {
-  total: sql<number>`count(*)::int`,
+  total: sql<number>`(count(*) filter (where ${files.status} <> 'removed'))::int`,
   uploaded: sql<number>`(count(*) filter (where ${files.status} = 'uploaded'))::int`,
   problems: sql<number>`(count(*) filter (where ${files.status} = 'unreadable'))::int`,
-  bytesTotal: sql<number>`coalesce(sum(${files.sizeBytes}), 0)::float8`,
+  bytesTotal: sql<number>`coalesce(sum(${files.sizeBytes}) filter (where ${files.status} <> 'removed'), 0)::float8`,
   bytesUploaded: sql<number>`coalesce(sum(${files.sizeBytes}) filter (where ${files.status} = 'uploaded'), 0)::float8`,
 };
 
@@ -161,6 +164,12 @@ async function summarize(db: Db, rows: (typeof projects.$inferSelect)[], signVie
       shootDate: project.shootDate,
       storagePrefix: project.storagePrefix,
       status: project.status,
+      footage: {
+        until: project.footageUntil?.toISOString() ?? null,
+        warned: Boolean(project.footageWarnedAt),
+        keep: project.keepFootage,
+        removedAt: project.footageRemovedAt?.toISOString() ?? null,
+      },
       files: totals,
       cards,
       proxies: {

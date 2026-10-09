@@ -138,6 +138,13 @@ export const projects = pgTable(
     // scenes, or paid for on its own).
     unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
     unlockedHow: text("unlocked_how", { enum: UNLOCKED_HOW }),
+    // The footage cleanup (Guy, Oct 9): camera originals are kept until a date (14 days unexported; 30/60/90 after
+    // export by plan), with emails 7 and 3 days before, unless Keep footage is on. Written by the worker each day.
+    keepFootage: boolean("keep_footage").notNull().default(false),
+    footageUntil: timestamp("footage_until", { withTimezone: true }),
+    footageWarnedAt: timestamp("footage_warned_at", { withTimezone: true }),
+    footageWarned3At: timestamp("footage_warned_3_at", { withTimezone: true }),
+    footageRemovedAt: timestamp("footage_removed_at", { withTimezone: true }),
     createdBy: text("created_by"),
     createdAt: createdAt(),
   },
@@ -152,7 +159,9 @@ export const projects = pgTable(
   ],
 ).enableRLS();
 
-export const FILE_STATUSES = ["pending", "uploading", "uploaded", "unreadable"] as const;
+// "removed": a camera original the footage cleanup took away (worker/src/cleanup.ts). Dropping the same card again
+// uploads it again.
+export const FILE_STATUSES = ["pending", "uploading", "uploaded", "unreadable", "removed"] as const;
 export type FileStatus = (typeof FILE_STATUSES)[number];
 
 /**
@@ -188,7 +197,7 @@ export const files = pgTable(
   (t) => [
     uniqueIndex("loupe_files_project_path_idx").on(t.projectId, t.path),
     index("loupe_files_project_card_idx").on(t.projectId, t.card),
-    check("loupe_files_status_valid", sql`${t.status} in ('pending', 'uploading', 'uploaded', 'unreadable')`),
+    check("loupe_files_status_valid", sql`${t.status} in ('pending', 'uploading', 'uploaded', 'unreadable', 'removed')`),
     check("loupe_files_size_valid", sql`${t.sizeBytes} >= 0`),
     appAccess(),
   ],
@@ -517,4 +526,29 @@ export const fund = pgTable(
     createdAt: createdAt(),
   },
   (t) => [check("loupe_fund_kind_valid", sql`${t.kind} in ('start', 'sale', 'plan', 'free_cut', 'adjust')`), index("loupe_fund_created_idx").on(t.createdAt), appAccess()],
+).enableRLS();
+
+export const CLEANUP_ACTIONS = ["warn", "warn_3", "remove", "would_warn", "would_warn_3", "would_remove", "odd_hidden"] as const;
+
+/**
+ * What the footage cleanup did, or would have done in report-only mode ("would_…"): one row per scene and action,
+ * with the files and bytes involved. "odd_hidden": a hidden file outside a Raw folder, which the 7-day rule would
+ * remove for good; it's flagged for a person to look at.
+ */
+export const cleanups = pgTable(
+  "loupe_cleanups",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    projectId: bigint("project_id", { mode: "number" }).references(() => projects.id),
+    action: text("action", { enum: CLEANUP_ACTIONS }).notNull(),
+    files: integer("files").notNull().default(0),
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+    detail: text("detail"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("loupe_cleanups_action_valid", sql`${t.action} in ('warn', 'warn_3', 'remove', 'would_warn', 'would_warn_3', 'would_remove', 'odd_hidden')`),
+    index("loupe_cleanups_created_idx").on(t.createdAt),
+    appAccess(),
+  ],
 ).enableRLS();

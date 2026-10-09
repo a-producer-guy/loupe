@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
-import { finals } from "@/lib/db/schema";
+import { files, finals } from "@/lib/db/schema";
 import { CutError, sceneCuts } from "@/lib/footage/cuts";
 import { exportable, FINISHING_SOUND, type FinalView } from "@/lib/footage/cut-types";
 
@@ -53,6 +53,9 @@ export async function requestFinal(db: Db, projectId: number, by: string): Promi
   if (!done?.result) throw new CutError("There's no cut to make a final of yet.");
   if (!done.result.render) throw new CutError("This version was cut before finals existed. Make it again, then export the final.");
   if (!exportable(done.result)) throw new CutError(FINISHING_SOUND, 409);
+  // The final is built from the camera originals: if the footage cleanup took them away, they're needed back first.
+  const [gone] = await db.select({ id: files.id }).from(files).where(and(eq(files.projectId, projectId), eq(files.status, "removed"))).limit(1);
+  if (gone) throw new CutError("The camera files for this scene were removed after their kept-until date. Drop the same cards onto the scene to bring them back, then make the final.", 409);
   const [existing] = await db
     .select({ status: finals.status })
     .from(finals)

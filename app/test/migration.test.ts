@@ -15,6 +15,7 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
     [
       "loupe_accounts",
       "loupe_card_luts",
+      "loupe_cleanups",
       "loupe_cuts",
       "loupe_files",
       "loupe_finals",
@@ -85,7 +86,7 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
   // Supabase's public API roles get nothing.
   for (const role of ["anon", "authenticated"]) {
     await pg.exec(`set role ${role}`);
-    for (const table of ["loupe_accounts", "loupe_members", "loupe_projects", "loupe_luts", "loupe_card_luts", "loupe_sign_in_attempts", "loupe_scripts", "loupe_cuts", "loupe_share_links", "loupe_share_notes", "loupe_finals", "loupe_payments", "loupe_fund"]) {
+    for (const table of ["loupe_accounts", "loupe_members", "loupe_projects", "loupe_luts", "loupe_card_luts", "loupe_sign_in_attempts", "loupe_scripts", "loupe_cuts", "loupe_share_links", "loupe_share_notes", "loupe_finals", "loupe_payments", "loupe_fund", "loupe_cleanups"]) {
       await assert.rejects(pg.query(`select * from ${table}`), /permission denied/, `${role} on ${table}`);
     }
     await pg.exec(`reset role`);

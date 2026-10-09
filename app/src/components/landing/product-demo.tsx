@@ -140,6 +140,7 @@ function shootAt(t: number): { shoot: ShootDetail; progress: ShootProgress; inFl
     shootDate: "2025-09-15",
     storagePrefix: "demo",
     status: safe ? "uploaded" : "uploading",
+    footage: { until: null, warned: false, keep: false, removedAt: null },
     files: counts,
     cards: landed ? cards : [],
     proxies: {
