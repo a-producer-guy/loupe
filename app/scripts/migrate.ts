@@ -261,6 +261,10 @@ async function main() {
 main().catch((error) => {
   const e = error as Error & { code?: string; errors?: Error[] };
   const why = e?.message || e?.errors?.[0]?.message || e?.code || String(error);
-  console.error(`\n✗ ${why === "ECONNREFUSED" || e?.code === "ECONNREFUSED" ? "Couldn't reach the database (connection refused)." : why}\n`);
+  console.error(`\n✗ ${why === "ECONNREFUSED" || e?.code === "ECONNREFUSED" ? "Couldn't reach the database (connection refused)." : why}`);
+  // The database's own reason (Drizzle only says which statement failed). Nothing was changed: it all runs as one.
+  const cause = (e as { cause?: Error & { code?: string; detail?: string } })?.cause;
+  if (cause?.message) console.error(`  The database said: ${cause.message}${cause.detail ? ` (${cause.detail})` : ""}${cause.code ? ` [${cause.code}]` : ""}`);
+  console.error("");
   process.exit(1);
 });
