@@ -45,7 +45,13 @@ export const PLANS: { id: Exclude<Plan, "free">; name: string; price: string; pe
     price: "$39",
     per: "a scene",
     for: "Shorts, students and actors",
-    points: ["Cut and direct for free, pay when you export", "A first assembly with a reason for every shot", "Every take of every line, one click away", "Premiere timeline with proxies attached"],
+    points: [
+      "Cut free, pay when you export",
+      "A first cut with a reason for every shot",
+      "3 changes by Loupe per scene, then finish it in Premiere or Resolve",
+      "Every take of every line, one click away",
+      "Timeline for Premiere and Resolve, proxies attached",
+    ],
     keeps: "Original footage kept 30 days after export",
   },
   {
@@ -54,7 +60,7 @@ export const PLANS: { id: Exclude<Plan, "free">; name: string; price: string; pe
     price: "$199",
     per: "a month",
     for: "Working editors and busy filmmakers",
-    points: ["10 scenes a month, then $39 each", "Everything in Indie", "Priority cutting"],
+    points: ["10 scenes a month, then $39 each", "10 changes by Loupe per scene", "Everything in Indie", "Priority cutting"],
     keeps: "Original footage kept 60 days after export",
   },
   {
@@ -63,7 +69,7 @@ export const PLANS: { id: Exclude<Plan, "free">; name: string; price: string; pe
     price: "$1,500",
     per: "a month",
     for: "Reel companies and production houses",
-    points: ["Up to 60 scenes a month, then $25 each", "Team seats and shared scenes", "Your house style for every cut", "Savings report every month"],
+    points: ["Up to 60 scenes a month, then $25 each", "30 changes by Loupe per scene", "Team seats and shared scenes", "Your house style for every cut", "Savings report every month"],
     keeps: "Original footage kept 90 days, rolling",
   },
 ];

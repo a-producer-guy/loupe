@@ -1,10 +1,10 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { DirectDemo } from "@/components/landing/direct-demo";
 import { GruntWork } from "@/components/landing/grunt-work";
+import { Hats } from "@/components/landing/hats";
 import { HeroProof } from "@/components/landing/hero-proof";
 import { Savings } from "@/components/landing/savings";
-import { SceneDemo } from "@/components/landing/scene-demo";
+import { ProductDemo } from "@/components/landing/product-demo";
 import { Loupe } from "@/components/loupe/loupe";
 import { Wordmark } from "@/components/ui/brand";
 import { PLANS } from "@/lib/footage/account-view";
@@ -81,6 +81,10 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "Can I wipe my cards after uploading?",
     a: "Every file is checked after upload, but keep your own copy until you’ve exported. If you want Loupe to be your backup, switch on Keep footage and we’ll hold the originals for as long as you pay for it.",
   },
+  {
+    q: "What’s a change?",
+    a: "Anything you ask Loupe to redo: a note, another take for a line, a different lead, a score. Indie gets 3 per scene, Pro 10 and Studio 30. Undo, going back to an earlier version, comparing and sharing are always free. After that, export it and keep going in Premiere or Resolve.",
+  },
   { q: "Why pay at export?", a: "Because you should see Loupe cut your own footage before you pay anything. Uploading, watching the cut and directing it are free. You pay when you export." },
 ];
 
@@ -150,10 +154,16 @@ export default function Landing() {
         <section id="how" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">
           <h2 className={h2}>Watch Loupe cut a scene</h2>
           <p className={`${lede} mb-8`}>
-            Two actors, a wide, two close-ups and fourteen takes. Loupe hears every line in every take, throws out the flubs, picks the best reads and cuts
-            it like a story. This is what happens while you get a coffee.
+            This is Loupe itself, from the cards going in to the export. You drag in a folder and give notes; everything else happens on its own.
           </p>
-          <SceneDemo />
+          <ProductDemo />
+          <div className="mt-14">
+            <h3 id="modes" className="text-[clamp(22px,2.4vw,30px)] font-semibold leading-tight tracking-[-0.03em]">One editor, four hats</h3>
+            <p className="mb-6 mt-2 max-w-[56ch] text-[16px] text-muted">
+              Switch what Loupe works on with ⌥1–4 or a slash, then say what you want. Your next note only changes that.
+            </p>
+            <Hats />
+          </div>
         </section>
 
         <section className="mx-auto grid max-w-[1160px] items-start gap-x-14 gap-y-8 px-6 pb-[88px] md:grid-cols-[0.8fr_1.2fr]" aria-labelledby="grunt">
@@ -186,14 +196,6 @@ export default function Landing() {
           <h2 className={h2}>See what you’d save</h2>
           <p className={`${lede} mb-8`}>Move the sliders to match how you work. It picks the cheapest plan for you.</p>
           <Savings />
-        </section>
-
-        <section className="mx-auto max-w-[1160px] px-6 pb-[88px]" aria-labelledby="modes">
-          <h2 id="modes" className={h2}>Then you just give notes</h2>
-          <p className={`${lede} mb-8`}>
-            Like you would to an editor, in plain words. Loupe wears four hats: switch with ⌥1–4 or a slash, and your next note only changes that.
-          </p>
-          <DirectDemo />
         </section>
 
         <section id="studios" className="mx-auto grid max-w-[1160px] scroll-mt-5 items-center gap-10 px-6 pb-24 md:grid-cols-2" aria-label="Loupe and editors">

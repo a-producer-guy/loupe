@@ -74,6 +74,7 @@ export function CommandBar({
   onExtra,
   onUndo,
   busy,
+  embedded = false,
 }: {
   sceneId: number;
   cut: RoomCut;
@@ -86,6 +87,8 @@ export function CommandBar({
   /** Back to the version before (there is one). */
   onUndo?: () => void;
   busy: boolean;
+  /** Shown inside another page (the landing page's demo): no ⌥1–4, and the tab's title is left alone. */
+  embedded?: boolean;
 }) {
   const [text, setText] = useState("");
   const [menu, setMenu] = useState<"mode" | "scope" | null>(null);
@@ -123,6 +126,7 @@ export function CommandBar({
 
   // ⌥1–4 switches the mode, anywhere on the page.
   useEffect(() => {
+    if (embedded) return;
     const key = (e: KeyboardEvent) => {
       if (!e.altKey || e.metaKey || e.ctrlKey) return;
       const n = ["Digit1", "Digit2", "Digit3", "Digit4"].indexOf(e.code);
@@ -133,7 +137,7 @@ export function CommandBar({
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [onDept]);
+  }, [onDept, embedded]);
 
   // What Loupe is doing (always shown while it works, Guy Oct 7), and what it last said once it's done.
   const latest = cut.latest;
@@ -183,7 +187,7 @@ export function CommandBar({
           </div>
         </div>
       )}
-      {working && !menu && !about && <Status cut={cut} sceneId={sceneId} />}
+      {working && !menu && !about && <Status cut={cut} sceneId={sceneId} embedded={embedded} />}
       {reply && !about && !menu && !(focused && !text) && (
         <div className="reply" role="status">
           <b>Loupe</b>
@@ -361,14 +365,14 @@ const asked = (v: CutView | null) => {
  * Always there until it's done, so nobody wonders whether anything is happening (Guy, Oct 7). The tab's title says
  * so too, for when the page is in the background.
  */
-function Status({ cut, sceneId }: { cut: RoomCut; sceneId: number }) {
+function Status({ cut, sceneId, embedded }: { cut: RoomCut; sceneId: number; embedded: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   // Ticks the clock, and keeps the tab's title saying so (the page's own title can come back over it).
   useEffect(() => {
     const mark = "● Loupe is working · ";
     const tick = () => {
       setNow(Date.now());
-      if (!document.title.startsWith(mark)) document.title = mark + document.title;
+      if (!embedded && !document.title.startsWith(mark)) document.title = mark + document.title;
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -376,7 +380,7 @@ function Status({ cut, sceneId }: { cut: RoomCut; sceneId: number }) {
       clearInterval(id);
       document.title = document.title.replace(mark, "");
     };
-  }, []);
+  }, [embedded]);
   const doing = cut.working;
   const next = cut.waiting;
   const step = cut.steps.findIndex((s) => s.key === doing?.step);

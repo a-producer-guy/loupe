@@ -79,6 +79,7 @@ export function Suite({
   notes = [],
   onNote,
   busy,
+  embedded = false,
 }: {
   sceneId: number;
   cut: RoomCut;
@@ -95,6 +96,8 @@ export function Suite({
   onPick: (line: number, take: string) => void;
   onLead: (role: string | null) => void;
   busy: boolean;
+  /** Shown inside another page (the landing page's demo): no keyboard shortcuts, and it never scrolls the page. */
+  embedded?: boolean;
 }) {
   const result = cut.done?.result ?? null;
   const working = cut.latest && (cut.latest.status === "waiting" || cut.latest.status === "working");
@@ -130,10 +133,10 @@ export function Suite({
 
   // The script follows the playback: the line being heard stays in view.
   useEffect(() => {
-    if (!playing || activeLine < 0) return;
+    if (!playing || activeLine < 0 || embedded) return;
     const beat = page.current?.querySelector<HTMLElement>(`.beat[data-li="${activeLine}"]`);
     beat?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-  }, [activeLine, playing]);
+  }, [activeLine, playing, embedded]);
 
   const seek = (seconds: number) => {
     const v = video.current;
@@ -164,6 +167,7 @@ export function Suite({
     setComparing(on);
   };
   useEffect(() => {
+    if (embedded) return;
     const up = (e: KeyboardEvent) => e.code === "Backslash" && compare(false);
     const away = () => compare(false);
     window.addEventListener("keyup", up);
@@ -176,6 +180,7 @@ export function Suite({
 
   // J K L and the arrows, like an editing room, C for subtitles, and \ held to compare (not while typing a note).
   useEffect(() => {
+    if (embedded) return;
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest("input, textarea, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;

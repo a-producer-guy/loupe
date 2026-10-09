@@ -84,7 +84,11 @@ export async function claimAssembly(sql: Sql, workerId: string): Promise<Assembl
          -- One version at a time per scene: a queued request waits for the one being made.
          and not exists (select 1 from loupe_cuts x where x.project_id = w.project_id and x.status = 'working')
          and (z.paid or z.cost <= ${balance})
-       order by (select max(x.started_at) from loupe_cuts x join loupe_projects q on q.id = x.project_id
+       -- Priority (the Pro plan's promise): Pro and Studio first, then scenes paid for, then free cuts; within each,
+       -- fair between customers.
+       order by case when a.plan in ('pro', 'studio') and a.subscription_status in ('active', 'trialing', 'past_due') then 0
+                     when p.unlocked_at is not null then 1 else 2 end,
+                (select max(x.started_at) from loupe_cuts x join loupe_projects q on q.id = x.project_id
                   where q.account_id = p.account_id and x.id <> w.id) asc nulls first, w.id
        limit 1
        for update of w skip locked`;
