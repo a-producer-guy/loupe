@@ -12,45 +12,55 @@ import type { ShootProgress } from "@/lib/upload/manager";
 import "@/components/room/room.css";
 
 // The landing page's "how it works", played in the product itself: the real upload screen, the real "Loupe is cutting"
-// screen, the real cutting room, command bar and export sheet, fed a scripted stand-in scene (drawn frames in
-// public/demo, so no one's footage is used) instead of the server. One clock drives it: the cards go in, the
-// proxies make themselves, Loupe cuts the scene, the cut plays, a line's other takes fan out, a note is typed and a
-// new version comes back, then the export (the final, 4K with Topaz, the XML timeline for Resolve). It pauses off
-// screen; with less motion asked for it opens on the finished cut and waits.
+// screen, the real cutting room, command bar and export sheet, fed a scripted scene instead of the server: stills and
+// two short cuts of Reelarc's "The Last Safe Room" in public/demo (Reelarc holds the rights; Guy, Oct 9). One clock
+// drives it: the card goes in, the proxies make themselves, Loupe cuts the scene, the cut plays, a line's other takes
+// fan out, a note is typed and a new version comes back, then the export (the final, 4K with Topaz, the XML timeline
+// for Resolve). It pauses off screen; with less motion asked for it opens on the finished cut and waits.
 
 const STILL = (take: string) => `/demo/take-${take}.jpg`;
 const GB = 1e9;
 
-// The shoot: two cards, ten takes (a wide, Danny's close-ups, Maya's close-ups).
-const CLIPS: { take: string; card: string; gb: number; seconds: number }[] = [
-  { take: "1", card: "A001", gb: 2.4, seconds: 52 },
-  { take: "2", card: "A001", gb: 2.1, seconds: 46 },
-  { take: "3", card: "A001", gb: 1.6, seconds: 35 },
-  { take: "4", card: "A001", gb: 1.7, seconds: 38 },
-  { take: "5", card: "A001", gb: 1.5, seconds: 33 },
-  { take: "6", card: "A001", gb: 1.8, seconds: 40 },
-  { take: "7", card: "A002", gb: 1.9, seconds: 41 },
-  { take: "8", card: "A002", gb: 1.6, seconds: 36 },
-  { take: "9", card: "A002", gb: 2.0, seconds: 44 },
-  { take: "10", card: "A002", gb: 1.7, seconds: 37 },
+// The shoot: Reelarc's "The Last Safe Room" (Stephen Powell and Danni Wang, used with Reelarc's rights), its RED card
+// as it came off the camera: fifteen clips of David (DAVID) and Ruth (RUTH), medium and close.
+const CLIPS: { take: string; code: string; bytes: number }[] = [
+  { take: "1", code: "1014OQ", bytes: 1639442009 },
+  { take: "2", code: "1014HL", bytes: 1846959741 },
+  { take: "3", code: "1014II", bytes: 1996519045 },
+  { take: "4", code: "1014DG", bytes: 1962920213 },
+  { take: "5", code: "1014TY", bytes: 1272823561 },
+  { take: "6", code: "1014XY", bytes: 2278025957 },
+  { take: "7", code: "10145P", bytes: 1878447185 },
+  { take: "8", code: "1014LW", bytes: 1847557861 },
+  { take: "9", code: "1014NM", bytes: 1859432249 },
+  { take: "10", code: "1014E9", bytes: 742208437 },
+  { take: "11", code: "101467", bytes: 1768869369 },
+  { take: "12", code: "1014L5", bytes: 2025233581 },
+  { take: "13", code: "10144Z", bytes: 4177984977 },
+  { take: "14", code: "10148F", bytes: 2160123789 },
+  { take: "15", code: "1014EI", bytes: 2985272109 },
 ];
-const SETUP: Record<string, { who: string; framing: "medium" | "close" } | null> = Object.fromEntries(
-  CLIPS.map((c) => [c.take, +c.take <= 2 ? null : { who: +c.take <= 6 ? "DANNY" : "MAYA", framing: "close" as const }]),
+const RUTH_TAKES = ["4", "6", "11", "12", "13"];
+const CLOSE_TAKES = ["7", "8", "9", "10", "13", "14", "15"];
+const SETUP: Record<string, { who: string; framing: "medium" | "close" }> = Object.fromEntries(
+  CLIPS.map((c) => [c.take, { who: RUTH_TAKES.includes(c.take) ? "RUTH" : "DAVID", framing: CLOSE_TAKES.includes(c.take) ? "close" : "medium" }]),
 );
-const pathOf = (c: (typeof CLIPS)[number]) => `${c.card}/A${c.card.slice(1)}_C${c.take.padStart(3, "0")}_0923RT.mov`;
+const nameOf = (c: (typeof CLIPS)[number]) => `A002_C${c.take.padStart(3, "0")}_${c.code}`;
+const pathOf = (c: (typeof CLIPS)[number]) => `A002/${nameOf(c)}.RDC/${nameOf(c)}_001.mov`;
+const secondsOf = (c: (typeof CLIPS)[number]) => Math.round(c.bytes / 42e6);
 
 // The clock, in seconds.
 const UP = 1.8; // the cards land
 const UP_EACH = 1.4;
-const UP_GAP = 0.35;
+const UP_GAP = 0.28;
 const PROXY = 1.0;
 const CUT_AT = 9;
 const STEP = 0.85;
 const DONE_AT = CUT_AT + CUT_STEPS.length * STEP + 0.2;
-const TRAY_AT = DONE_AT + 14.4;
+const TRAY_AT = DONE_AT + 26;
 const TRAY_DONE = TRAY_AT + 3.8;
 const NOTE_AT = TRAY_DONE + 0.5;
-const NOTE = "More tired on this one";
+const NOTE = "Stay on Ruth while he says this";
 const SEND_AT = NOTE_AT + NOTE.length * 0.05 + 0.5;
 const V2_AT = SEND_AT + 3.4;
 const EXPORT_AT = V2_AT + 5.5;
@@ -89,9 +99,9 @@ function shootAt(t: number): { shoot: ShootDetail; progress: ShootProgress; inFl
   const clips: ClipRow[] = landed
     ? rows.map(({ c, i, s }) => ({
         id: i + 1,
-        card: c.card,
+        card: "A002",
         path: pathOf(c),
-        sizeBytes: c.gb * GB,
+        sizeBytes: c.bytes,
         status: s.uploaded ? "uploaded" : s.started ? "uploading" : "pending",
         proxy: !s.uploaded
           ? null
@@ -115,7 +125,7 @@ function shootAt(t: number): { shoot: ShootDetail; progress: ShootProgress; inFl
   const done = clips.filter((c) => c.proxy?.status === "done");
   const counts = { total: clips.length, uploaded: uploaded.length, problems: 0, bytesTotal, bytesUploaded };
   const safe = clips.length > 0 && uploaded.length === clips.length;
-  const cards = ["A001", "A002"].map((card) => {
+  const cards = ["A002"].map((card) => {
     const mine = clips.filter((c) => c.card === card);
     const up = mine.filter((c) => c.status === "uploaded");
     return {
@@ -126,8 +136,8 @@ function shootAt(t: number): { shoot: ShootDetail; progress: ShootProgress; inFl
   });
   const shoot: ShootDetail = {
     id: 1,
-    name: "The Ring, scene 12",
-    shootDate: "2026-09-23",
+    name: "The Last Safe Room",
+    shootDate: "2025-09-15",
     storagePrefix: "demo",
     status: safe ? "uploaded" : "uploading",
     files: counts,
@@ -143,7 +153,7 @@ function shootAt(t: number): { shoot: ShootDetail; progress: ShootProgress; inFl
     },
     safeToWipe: safe,
     proxiesReady: clips.length > 0 && done.length === clips.length,
-    runtimeSeconds: rows.filter(({ s }) => s.proxy >= 1).reduce((n, { c }) => n + c.seconds, 0),
+    runtimeSeconds: rows.filter(({ s }) => s.proxy >= 1).reduce((n, { c }) => n + secondsOf(c), 0),
     coverUrl: null,
     lut: null,
     cardLuts: [],
@@ -173,37 +183,44 @@ function shootAt(t: number): { shoot: ShootDetail; progress: ShootProgress; inFl
   return { shoot, progress, inFlight };
 }
 
-// The script, and the cut Loupe makes of it (and, after the note, of its last line).
+// The script, and the cut Loupe makes of it (and, after the note, of David's last line). Times are the scene's own.
 const LINES = [
-  { who: "DANNY", text: "You kept the ring." },
-  { who: "MAYA", text: "I kept the box. The ring’s in the river." },
-  { who: "DANNY", text: "Which river?" },
-  { who: "MAYA", text: "Does it matter?" },
+  { who: "RUTH", text: "Where’s Perkins?" },
+  { who: "DAVID", text: "He was slowing us down, and someone had to draw them off." },
+  { who: "RUTH", text: "What? What are you saying?" },
+  { who: "DAVID", text: "I had him stay behind." },
+  { who: "RUTH", text: "That’s not a strategy, David. That’s a death sentence." },
+  { who: "DAVID", text: "I’ve seen good soldiers die for less. At least this way, the rest of us have a chance." },
 ];
 
-function makeShots(lastTake: string, lastWhy: string): Shot[] {
-  const plan: [string, number, number, string, Shot["kind"], Shot["cut"]][] = [
-    ["1", -1, 2.4, "Opens wide, so we know where we are.", "establishing", null],
-    ["5", 0, 2.0, "Take 5. He barely says it, and that’s the scene.", "shot", "straight"],
-    ["9", 1, 3.4, "Take 9. She waits a beat before “river”. Take 7 says “lake”, and take 8 is soft.", "shot", "J"],
-    ["3", 2, 1.8, "Take 3. Flat, almost a joke: he isn’t ready to ask.", "shot", "straight"],
-    [lastTake, 3, 2.2, lastWhy, "shot", "straight"],
-    ["5", 3, 2.0, "Danny takes it in. Her line carries over him.", "reaction", "L"],
-  ];
+type Plan = [take: string, line: number, seconds: number, why: string, kind: Shot["kind"], cut: Shot["cut"]];
+const FIRST: Plan[] = [
+  ["4", 0, 2.3357, "Take 4. She comes in already afraid of the answer.", "shot", null],
+  ["2", 1, 6.5899, "Take 2. He keeps working while he says it, which makes it colder.", "shot", "straight"],
+  ["11", 2, 3.3366, "Take 11. The disbelief lands on “saying”.", "shot", "straight"],
+  ["3", 3, 2.8362, "Take 3. Flat and certain: he made the call and would make it again.", "shot", "straight"],
+  ["12", 4, 5.0884, "Take 12. The scene turns on her line, so we stay with her all the way through.", "shot", "straight"],
+  ["8", 5, 5.3804, "Take 8, close. He holds her eye on “less”.", "shot", "straight"],
+];
+const AFTER_NOTE: Plan[] = [
+  ...FIRST.slice(0, 5),
+  ["8", 5, 2.3832, "Take 8, close. He holds her eye on “less”.", "shot", "straight"],
+  ["6", 5, 3.0, "Ruth takes it in (take 6). His line carries over her, as you asked.", "reaction", "L"],
+];
+
+function makeShots(plan: Plan[]): Shot[] {
   let at = 0;
   return plan.map(([take, line, seconds, why, kind, cut], k) => {
-    const setup = SETUP[take];
-    const said = line >= 0 ? LINES[line] : null;
     const shot: Shot = {
       n: k + 1,
       at,
       seconds,
       take,
-      who: setup?.who ?? "MAYA",
-      framing: setup?.framing ?? "medium",
+      who: SETUP[take].who,
+      framing: SETUP[take].framing,
       kind,
-      line: said?.text ?? "",
-      speaker: said?.who ?? "",
+      line: LINES[line].text,
+      speaker: LINES[line].who,
       listening: kind === "reaction",
       why,
       alternates: [],
@@ -216,10 +233,12 @@ function makeShots(lastTake: string, lastWhy: string): Shot[] {
 
 // When each line is heard in the preview, word by word.
 const HEARD: [number, number][] = [
-  [2.7, 3.9],
-  [4.7, 7.0],
-  [8.0, 8.9],
-  [9.9, 11.0],
+  [0.15, 1.9],
+  [4.5, 9.4],
+  [10, 12.4],
+  [13, 15.3],
+  [16, 19.8],
+  [20, 25],
 ];
 const SUBS = LINES.map((l, line) => {
   const [s, e] = HEARD[line];
@@ -227,45 +246,42 @@ const SUBS = LINES.map((l, line) => {
   return { line, s, e, words: words.map((w, k) => ({ t: w, s: s + ((e - s) * k) / words.length })) };
 });
 
-const lineIn = (s: number, e: number, said: string, match = 1) => ({ s, e, match, said });
-const LINE_TAKES: CutResult["lineTakes"] = {
-  "3": { q: 0.82, why: [], complete: 1, performance: 0.8, lines: [lineIn(4, 5.2, "You kept the ring."), null, lineIn(9, 9.9, "Which river?"), null] },
-  "4": { q: 0.4, why: [], complete: 1, performance: 0.7, lines: [lineIn(4.2, 5.4, "You kept the ring."), null, lineIn(9.4, 10.3, "Which river?"), null] },
-  "5": { q: 0.9, why: [], complete: 1, performance: 0.9, lines: [lineIn(3.8, 5, "You kept the ring."), null, lineIn(8.8, 9.6, "Which river?"), null] },
-  "6": { q: 0.7, why: [], complete: 1, performance: 0.6, lines: [lineIn(4.1, 5.2, "You kept the ring."), null, lineIn(9.2, 10, "Which river?"), null] },
-  "7": { q: 0.74, why: [], complete: 0.8, performance: 0.85, lines: [null, lineIn(5, 7.3, "I kept the box. The ring’s in the lake.", 0.8), null, lineIn(11, 12, "Does it matter?")] },
-  "8": { q: 0.5, why: [], complete: 1, performance: 0.7, lines: [null, lineIn(5.2, 7.4, "I kept the box. The ring’s in the river."), null, lineIn(11.3, 12.2, "Does it matter?")] },
-  "9": { q: 0.93, why: [], complete: 1, performance: 0.92, lines: [null, lineIn(4.8, 7.2, "I kept the box. The ring’s in the river."), null, lineIn(10.8, 11.8, "Does it matter?")] },
-  "10": { q: 0.88, why: [], complete: 1, performance: 0.86, lines: [null, lineIn(5.1, 7.3, "I kept the box. The ring’s in the river."), null, lineIn(11.1, 12, "Does it matter?")] },
-};
+// Every line in every take of its speaker (close-ups of David have just his last line), and how each one plays.
+const LINE_TAKES: CutResult["lineTakes"] = Object.fromEntries(
+  CLIPS.map((c, k) => {
+    const who = SETUP[c.take].who;
+    const lines = LINES.map((l, j) => {
+      if (l.who !== who || (CLOSE_TAKES.includes(c.take) && who === "DAVID" && j !== 5)) return null;
+      const [s, e] = HEARD[j];
+      const match = c.take === "9" && j === 5 ? 0.6 : 1;
+      return { s: s + 2 + (k % 3) * 0.3, e: e + 2 + (k % 3) * 0.3, match, said: match < 1 ? "I’ve seen good soldiers die for less." : l.text };
+    });
+    return [c.take, { q: 0.6 + ((k * 7) % 10) / 30, why: [], complete: 1, performance: 0.7, lines }];
+  }),
+);
 const PERFORMANCES: Record<string, string> = {
-  "3": "Flat, almost a joke",
-  "4": "The boom dips into shot",
-  "5": "Quiet, hurt",
-  "6": "Too big",
-  "7": "The most tired read",
-  "8": "Soft focus",
-  "9": "Holds the pause before “river”",
-  "10": "Soft and steady",
+  "7": "Too loud for the room",
+  "8": "Holds her eye on “less”",
+  "9": "Drops the second half",
+  "10": "Steady, a little cold",
+  "14": "Played away from her",
+  "15": "Slow, almost gentle",
 };
 
 function makeResult(version: 1 | 2): CutResult {
-  const shots =
-    version === 1
-      ? makeShots("10", "Take 10, the steadiest read of the line.")
-      : makeShots("7", "Take 7: quieter and more tired, as you asked.");
+  const shots = makeShots(version === 1 ? FIRST : AFTER_NOTE);
   return {
-    title: "The Ring, scene 12",
+    title: "The Last Safe Room",
     fromTakes: false,
     scriptId: 1,
-    scriptTitle: "The Ring",
-    match: 0.97,
-    client: "MAYA",
-    partner: "DANNY",
-    roles: ["MAYA", "DANNY"],
+    scriptTitle: "The Last Safe Room",
+    match: 0.98,
+    client: "DAVID",
+    partner: "RUTH",
+    roles: ["DAVID", "RUTH"],
     seconds: shots.reduce((n, s) => n + s.seconds, 0),
     shots,
-    counts: { shots: shots.length, reactions: 1, splits: 0, lines: LINES.length },
+    counts: { shots: shots.length, reactions: version === 1 ? 0 : 1, splits: 0, lines: LINES.length },
     takes: CLIPS.map((c) => ({ take: c.take, path: pathOf(c), found: SETUP[c.take], setup: SETUP[c.take], used: shots.some((s) => s.take === c.take) })),
     lines: LINES,
     subs: SUBS,
@@ -273,8 +289,8 @@ function makeResult(version: 1 | 2): CutResult {
     dropped: [],
     jumps: [],
     heard: null,
-    place: "Diner",
-    lut: null,
+    place: "Safe room",
+    lut: "RED_IPP2_BUTTERY_Eterna",
     performances: PERFORMANCES,
     preview: { path: `v${version}.mp4`, size: 0 },
     files: [],
@@ -283,20 +299,20 @@ function makeResult(version: 1 | 2): CutResult {
 
 const RESULT_1 = makeResult(1);
 const RESULT_2 = makeResult(2);
-const REPLY = "Swapped Maya’s last line to take 7, the most tired read. Take 10 is one click away.";
+const REPLY = "Cut to Ruth halfway through David’s line, so we watch it land on her. His take stays the same.";
 
 const view = (id: number, status: CutView["status"], step: string | null, result: CutResult | null, notes: { note: string; reply: string | null }[] = []): CutView => ({
   id,
   status,
   step,
   error: null,
-  createdAt: "2026-09-23T18:00:00Z",
+  createdAt: "2025-09-15T18:00:00Z",
   startedAt: null,
   finishedAt: null,
   scriptId: 1,
   leadRole: null,
   coverage: null,
-  direction: notes.length ? { notes: notes.map((n) => ({ ...n, at: "2026-09-23T18:10:00Z" })) } : null,
+  direction: notes.length ? { notes: notes.map((n) => ({ ...n, at: "2025-09-15T18:10:00Z" })) } : null,
   result,
 });
 
@@ -304,9 +320,9 @@ function cutAt(t: number): RoomCut {
   const base = {
     steps: CUT_STEPS,
     ready: 0,
-    script: t >= UP + 1 ? { id: 1, title: "The Ring", roles: ["MAYA", "DANNY"] } : null,
-    takes: Object.fromEntries(CLIPS.map((c) => [c.take, { still: STILL(c.take), preview: null, seconds: c.seconds }])),
-    heading: "INT. DINER – NIGHT",
+    script: t >= UP + 1 ? { id: 1, title: "The Last Safe Room", roles: ["DAVID", "RUTH"] } : null,
+    takes: Object.fromEntries(CLIPS.map((c) => [c.take, { still: STILL(c.take), preview: null, seconds: secondsOf(c) }])),
+    heading: "INT. SAFE ROOM – DAY",
   };
   if (t < CUT_AT) return { ...base, latest: null, done: null, working: null, waiting: null, versions: 0, preview: null, previous: null };
   if (t < DONE_AT) {
@@ -345,12 +361,12 @@ function finalAt(t: number): FinalState {
 function savingAt(t: number): DownloadState {
   if (t < XML_AT) return { step: "idle" };
   const files = 24;
-  const bytes = 18.7 * GB;
+  const bytes = 31.9 * GB;
   if (t < SAVED) {
     const k = (t - XML_AT) / (SAVED - XML_AT);
     return { step: "working", files, filesDone: Math.floor(files * k), bytes, bytesDone: bytes * k };
   }
-  return { step: "done", folder: "The Ring, scene 12", files, bytes };
+  return { step: "done", folder: "The Last Safe Room", files, bytes };
 }
 
 const noop = () => {};
@@ -445,7 +461,7 @@ export function ProductDemo() {
       const s = c.t;
       at("play", DONE_AT + 0.4, s, () => play(0));
       at("tray", TRAY_AT, s, () => {
-        click('.beat[data-li="3"] .ltools button');
+        click('.beat[data-li="5"] .ltools button');
         // Bring the takes into view inside the script, never by moving the page.
         setTimeout(() => {
           const col = screen.current?.querySelector<HTMLElement>(".scriptcol");
@@ -462,7 +478,7 @@ export function ProductDemo() {
         }
       }
       at("send", SEND_AT, s, () => click(".cmdbar .send"));
-      at("v2", V2_AT + 0.3, s, () => play(9.3));
+      at("v2", V2_AT + 0.3, s, () => play(19.6));
       // The export sheet scrolls itself, inside its own card.
       const sheet = () => {
         const card = screen.current?.querySelector<HTMLElement>(".sheet-card");
@@ -486,7 +502,7 @@ export function ProductDemo() {
     setPlaying(true);
     if (to > DONE_AT + 0.4 && to < V2_AT) setTimeout(() => {
       const v = screen.current?.querySelector<HTMLVideoElement>(".picture video");
-      if (v) (v.muted = true), (v.currentTime = Math.min(13, to - DONE_AT)), void v.play().catch(() => {});
+      if (v) (v.muted = true), (v.currentTime = Math.min(24, to - DONE_AT)), void v.play().catch(() => {});
       clock.current.fired.add("play");
     }, 150);
   };
@@ -526,7 +542,7 @@ export function ProductDemo() {
           <i className="block size-2.5 rounded-full bg-surface-3" />
           <i className="block size-2.5 rounded-full bg-surface-3" />
           <i className="block size-2.5 rounded-full bg-surface-3" />
-          <span className="mx-auto rounded-md bg-surface-2 px-3 py-0.5 text-[11.5px] text-faint">editloupe.com/scenes/the-ring</span>
+          <span className="mx-auto rounded-md bg-surface-2 px-3 py-0.5 text-[11.5px] text-faint">editloupe.com/scenes/the-last-safe-room</span>
           <button
             type="button"
             onClick={() => (t >= LOOP - 0.2 ? jump(0) : setPlaying((p) => !p))}
@@ -619,7 +635,7 @@ function Drop({ t }: { t: number }) {
         className="grid gap-1.5"
         style={{ transform: `translate(${(1 - ease) * -420}px, ${(1 - ease) * -260}px) rotate(${(1 - ease) * -8}deg)`, opacity: t > UP ? 0 : 1, transition: "opacity .2s" }}
       >
-        {["A001", "A002", "Sound", "The Ring.fdx"].map((name, i) => (
+        {["A002", "Sound", "The Last Safe Room.pdf"].map((name, i) => (
           <span
             key={name}
             className="flex items-center gap-2 rounded-[10px] bg-surface px-3.5 py-2 text-[15px] font-medium shadow-lift ring-1 ring-line"
