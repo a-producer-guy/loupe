@@ -4,7 +4,7 @@ import { DirectDemo } from "@/components/landing/direct-demo";
 import { GruntWork } from "@/components/landing/grunt-work";
 import { HeroProof } from "@/components/landing/hero-proof";
 import { Savings } from "@/components/landing/savings";
-import { SceneDemo } from "@/components/landing/scene-demo";
+import { ProductDemo } from "@/components/landing/product-demo";
 import { Loupe } from "@/components/loupe/loupe";
 import { Wordmark } from "@/components/ui/brand";
 import { PLANS } from "@/lib/footage/account-view";
@@ -150,10 +150,10 @@ export default function Landing() {
         <section id="how" className="mx-auto max-w-[1160px] scroll-mt-5 px-6 pb-[88px]">
           <h2 className={h2}>Watch Loupe cut a scene</h2>
           <p className={`${lede} mb-8`}>
-            Two actors, a wide, two close-ups and fourteen takes. Loupe hears every line in every take, throws out the flubs, picks the best reads and cuts
-            it like a story. This is what happens while you get a coffee.
+            This is Loupe itself, from the cards going in to the first cut and your first note. You drag in a folder; everything after that happens on
+            its own.
           </p>
-          <SceneDemo />
+          <ProductDemo />
         </section>
 
         <section className="mx-auto grid max-w-[1160px] items-start gap-x-14 gap-y-8 px-6 pb-[88px] md:grid-cols-[0.8fr_1.2fr]" aria-labelledby="grunt">

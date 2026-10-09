@@ -66,7 +66,7 @@ export const config = {
   matcher: [
     {
       // Every page, sign-in included. Not API routes, and not static files.
-      source: "/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|otf|woff2?)$).*)",
+      source: "/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|otf|woff2?|mp4)$).*)",
       // Prefetches don't render a page, so they need no nonce.
       missing: [
         { type: "header", key: "next-router-prefetch" },
