@@ -28,6 +28,7 @@ export function HeroProof() {
   const [hops, setHops] = useState(0);
   const [mood, setMood] = useState<LoupeMood>("idle");
   const [snip, setSnip] = useState(false);
+  const [snips, setSnips] = useState(0);
   // Which time round the act this is: every round, every number is cut a new way.
   const [round, setRound] = useState(0);
 
@@ -57,7 +58,7 @@ export function HeroProof() {
     ];
     CARDS.forEach((_, i) => {
       beats.push([() => (setMood("think"), go(at(i), true, 650)), 680]);
-      beats.push([() => (stage(i, "hit"), setSnip(true)), 450]);
+      beats.push([() => (stage(i, "hit"), setSnip(true), setSnips((n) => n + 1)), 450]);
       beats.push([() => (setSnip(false), stage(i, "done"), setMood("happy")), 550]);
     });
     beats.push([() => go(at(null), true, 700), 900]);
@@ -137,7 +138,7 @@ export function HeroProof() {
         >
           <div key={`h${hops}`} className={hops ? "animate-[hop_650ms_ease-out_both]" : ""}>
             <div className={`origin-bottom transition-transform duration-150 ${snip ? "rotate-[-8deg] scale-105" : ""}`}>
-              <Loupe size={SIZE} mood={mood} dept="edit" three ticklish={false} />
+              <Loupe size={SIZE} mood={mood} dept="edit" three ticklish={false} playful snips={snips} />
             </div>
           </div>
         </div>
