@@ -1,7 +1,7 @@
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { waitingForFund } from "@/lib/fund";
 import type { Db } from "@/lib/db/client";
-import { cuts, files, projects, proxyJobs } from "@/lib/db/schema";
+import { accounts, cuts, files, projects, proxyJobs } from "@/lib/db/schema";
 import { sceneScript } from "@/lib/footage/scripts";
 
 // A scene's cut (Loupe stage 2). It starts by itself once the scene's footage is in and its proxies are made (the
@@ -9,7 +9,7 @@ import { sceneScript } from "@/lib/footage/scripts";
 // (worker/src/assembly), and is directed with notes. The worker fills in `result` (run.ts, AssemblyResult) and puts
 // the package in the scene's "Loupe Cut" folder in B2.
 
-import { CUT_FOLDER, CUT_STEPS, folderOf, type CutResult, type CutState, type CutView, type Direction } from "./cut-types";
+import { CHANGES, changesUsed, CUT_FOLDER, CUT_STEPS, folderOf, type CutResult, type CutState, type CutView, type Direction, type SceneChanges } from "./cut-types";
 
 export * from "./cut-types";
 
@@ -80,7 +80,42 @@ export async function startCutIfReady(db: Db, projectId: number, by: string | nu
   return inserted.length > 0;
 }
 
-const answered = (d: Direction | null | undefined) => (d ? { ...d, notes: (d.notes ?? []).filter((n) => n.reply !== null) } : null);
+/** A finished version's choices, to build the next one on (without what only described that version itself). */
+const answered = (d: Direction | null | undefined): Direction | null => {
+  if (!d) return null;
+  const { restoredFrom: _from, restoredHow: _how, queued: _queued, studioSound: _studio, ...rest } = d;
+  void [_from, _how, _queued, _studio];
+  return { ...rest, notes: (d.notes ?? []).filter((n) => n.reply !== null) };
+};
+
+/**
+ * The scene's changes so far, and its plan's allowance. A change is a version Loupe makes on request: the first cut,
+ * going back to a version, the studio sound made for a paid preview, a note Loupe answered without changing anything,
+ * and a try that failed don't count.
+ */
+export async function sceneChanges(db: Db, projectId: number): Promise<SceneChanges> {
+  const [row] = await db
+    .select({ plan: accounts.plan, status: accounts.subscriptionStatus })
+    .from(projects)
+    .innerJoin(accounts, eq(accounts.id, projects.accountId))
+    .where(eq(projects.id, projectId));
+  const live = ["active", "trialing", "past_due"].includes(row?.status ?? "");
+  const plan = live && (row?.plan === "pro" || row?.plan === "studio") ? row.plan : "indie";
+  const [{ made }] = await db
+    .select({ made: sql<number>`count(*)::int` })
+    .from(cuts)
+    .where(
+      and(
+        eq(cuts.projectId, projectId),
+        ne(cuts.status, "failed"),
+        sql`${cuts.result}->>'restoredFrom' is null`,
+        sql`${cuts.direction}->>'restoredFrom' is null`,
+        sql`coalesce(${cuts.direction}->>'studioSound', 'false') <> 'true'`,
+        sql`coalesce(${cuts.result}->>'unchanged', 'false') <> 'true'`,
+      ),
+    );
+  return { used: Math.max(0, made - 1), limit: CHANGES[plan], plan };
+}
 const isUnique = (error: unknown) => String((error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code) === "23505";
 
 /**
@@ -89,23 +124,18 @@ const isUnique = (error: unknown) => String((error as { code?: string }).code ??
  * waiting behind the one being made, and the worker reads them against whatever that one turns out to be
  * (worker/src/assembly/job.ts, queued). Several requests while it's busy join up, in order. Never turned away.
  */
-/** The most versions Loupe makes for one scene. */
-export const MAX_VERSIONS = 30;
-
 async function ask(
   db: Db,
   projectId: number,
   by: string,
-  change: { words: string | null; direction?: (d: Direction) => Direction; leadRole?: string | null; scriptId?: number | null },
+  change: { words: string | null; direction?: (d: Direction) => Direction; leadRole?: string | null; scriptId?: number | null; counted?: boolean },
 ): Promise<CutView> {
   if ((await takesReady(db, projectId)).ready < 2) throw new CutError("Loupe needs at least two takes with proxies to cut a scene. They're still being made.");
-  // Each version costs Loupe something, so a scene has at most 30 made (going back to a kept one is free). Even all
-  // 30 cost less than the scene's price (Guy, Oct 9: always in the black).
-  const [{ made }] = await db
-    .select({ made: sql<number>`count(*)::int` })
-    .from(cuts)
-    .where(and(eq(cuts.projectId, projectId), sql`${cuts.status} <> 'failed'`, sql`${cuts.result}->>'restoredFrom' is null`));
-  if (made >= MAX_VERSIONS) throw new CutError(`This scene has had ${MAX_VERSIONS} versions, the most Loupe makes for one scene. You can still go back to any of them in the version list.`);
+  // Each plan gets a number of changes per scene (Indie 3, Pro 10, Studio 30); going back to a version is free.
+  if (change.counted !== false) {
+    const changes = await sceneChanges(db, projectId);
+    if (changes.used >= changes.limit) throw new CutError(changesUsed(changes), 402);
+  }
   for (let attempt = 0; attempt < 3; attempt++) {
     const { done, working, waiting } = await sceneCuts(db, projectId);
     const at = new Date().toISOString();
@@ -134,13 +164,15 @@ async function ask(
     }
     const base: Direction = answered(done?.direction) ?? {};
     // Busy: queued in words, read later against the version being made now. Free: applied to the last finished one.
-    const direction: Direction = working
+    const made: Direction = working
       ? { queued: true, notes: change.words ? [{ note: change.words, reply: null, at }] : [] }
       : change.direction
         ? change.direction(base)
         : change.words
           ? { ...base, notes: [...(base.notes ?? []), { note: change.words, reply: null, at }] }
           : base;
+    // Made by Loupe itself (not going back): the studio sound for a paid preview, not one of the scene's changes.
+    const direction: Direction = change.counted === false && !made.restoredFrom ? { ...made, studioSound: true } : made;
     try {
       const [row] = await db
         .insert(cuts)
@@ -170,7 +202,7 @@ export async function requestCut(
   db: Db,
   projectId: number,
   by: string,
-  corrections: { scriptId?: number | null; leadRole?: string | null; direction?: Direction; words?: string } = {},
+  corrections: { scriptId?: number | null; leadRole?: string | null; direction?: Direction; words?: string; counted?: boolean } = {},
 ): Promise<CutView> {
   const { direction, words, ...rest } = corrections;
   return ask(db, projectId, by, { words: words ?? null, ...rest, ...(direction ? { direction: () => direction } : {}) });
@@ -231,12 +263,13 @@ export function packageFiles(prefix: string, result: CutResult): { path: string;
 /** Everything the scene page needs about its cut (starting the first one, if it's due). */
 export async function cutState(db: Db, projectId: number, prefix: string, by: string | null, sign: (key: string, version?: string, extension?: string) => Promise<string>): Promise<CutState> {
   await startCutIfReady(db, projectId, by);
-  const [{ latest, done, working, waiting, versions }, { ready }, script, fundWait] = await Promise.all([
+  const [{ latest, done, working, waiting, versions }, { ready }, script, fundWait, changes] = await Promise.all([
     sceneCuts(db, projectId),
     takesReady(db, projectId),
     sceneScript(db, projectId),
     waitingForFund(db, projectId),
+    sceneChanges(db, projectId),
   ]);
   const preview = done?.result ? await sign(`${prefix}/${folderOf(done.result)}/${done.result.preview.path}`, `cut-${done.id}`, "mp4") : null;
-  return { latest, done, working, waiting, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null, fundWait };
+  return { latest, done, working, waiting, versions, preview, steps: CUT_STEPS, ready, script: script ? { id: script.id, title: script.title, roles: script.roles } : null, fundWait, changes };
 }

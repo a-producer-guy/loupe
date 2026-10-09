@@ -294,7 +294,7 @@ export async function syncSubscription(db: Db, subscription: Stripe.Subscription
 export async function finishForExport(db: Db, projectId: number, by: string): Promise<void> {
   const { done, waiting } = await sceneCuts(db, projectId);
   if (done?.result?.voice !== "preview" || waiting) return;
-  await requestCut(db, projectId, by, {}).catch((error) => console.error(`Couldn't finish scene ${projectId} for export:`, error));
+  await requestCut(db, projectId, by, { counted: false }).catch((error) => console.error(`Couldn't finish scene ${projectId} for export:`, error));
 }
 
 /** What Stripe sent to the webhook, fetched back from Stripe by its id (so only real events count) and acted on. */

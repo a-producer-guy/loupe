@@ -115,6 +115,8 @@ export type Direction = {
   /** Going back to an earlier version that has to be made again (one from before versions were kept whole). */
   restoredFrom?: number;
   restoredHow?: RestoredHow;
+  /** The version Loupe makes itself once a free preview is paid for, with the studio sound: not one of the changes. */
+  studioSound?: boolean;
 };
 
 export type CutView = {
@@ -146,6 +148,8 @@ export type CutState = {
   script: { id: number; title: string; roles: string[] } | null;
   /** A free version waiting for the free-cutting fund to refill (lib/fund.ts): "starts soon", or pay to skip the line. */
   fundWait: boolean;
+  /** Changes Loupe has made to this scene, and how many its plan gets (Indie 3, Pro 10, Studio 30). */
+  changes: SceneChanges;
 };
 
 /** What the cutting room gets from GET /api/shoots/[id]/cut. */
@@ -159,6 +163,16 @@ export type RoomCut = CutState & {
 
 /** One change in a version, in plain words, that can be taken out on its own. */
 export type Change = { key: string; label: string };
+
+/** Changes Loupe makes per scene, by plan (Guy, Oct 9): the cut is finished in Premiere or Resolve, so Indie gets a few. */
+export const CHANGES = { indie: 3, pro: 10, studio: 30 } as const;
+export type SceneChanges = { used: number; limit: number; plan: keyof typeof CHANGES };
+
+/** Said when a scene's changes are used. */
+export function changesUsed(c: SceneChanges): string {
+  const more = c.plan === "indie" ? ", or go Pro for 10 a scene" : c.plan === "pro" ? ", or go Studio for 30 a scene" : "";
+  return `This scene's ${c.limit} changes are used. Export it to keep going in Premiere or Resolve${more}.`;
+}
 
 /** A version that can be exported: anything but a free preview (its studio sound is made once the scene is paid for). */
 export const exportable = (result: { voice?: string } | null | undefined) => Boolean(result) && result!.voice !== "preview";

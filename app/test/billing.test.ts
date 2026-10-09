@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createTestDb, type TestDb } from "./helpers/db";
 import { accounts, cuts, finals, fund, payments, projects, proxyJobs, files } from "../src/lib/db/schema";
 import { fundBalance, fundShare, waitingForFund } from "../src/lib/fund";
-import { requestCut, MAX_VERSIONS } from "../src/lib/footage/cuts";
+import { requestCut, sceneChanges } from "../src/lib/footage/cuts";
 import { requestFinal } from "../src/lib/footage/finals";
 import { createShoot } from "../src/lib/footage/shoots";
 import { sceneBilling, setStripeForTests, settleSession, syncSubscription, unlockScene, payForTopaz, handleEvent } from "../src/lib/billing";
@@ -223,13 +223,27 @@ describe("always in the black", () => {
     assert.equal(rows[1].status, "waiting", "the studio-sound version is on its way");
   });
 
-  test("a scene has at most 30 made versions; going back to one doesn't count", async () => {
+  test("Indie gets 3 changes a scene; going back and the studio sound don't count; Pro gets 10", async () => {
     const { scene } = await sceneWithCut("Busy");
     await withTakes(scene.id);
-    for (let i = 1; i < MAX_VERSIONS; i++) await db.insert(cuts).values({ projectId: scene.id, status: "done", result: { title: "v", restoredFrom: i === 1 ? 1 : undefined } as never });
-    await requestCut(db, scene.id, WHO, {});
-    await db.update(cuts).set({ status: "done" }).where(eq(cuts.status, "waiting"));
-    await assert.rejects(requestCut(db, scene.id, WHO, {}), /30 versions/);
+    const finish = () => db.update(cuts).set({ status: "done", result: { title: "v" } as never }).where(eq(cuts.status, "waiting"));
+    for (let i = 0; i < 3; i++) {
+      await requestCut(db, scene.id, WHO, { words: `Change ${i + 1}` });
+      await finish();
+    }
+    assert.deepEqual(await sceneChanges(db, scene.id), { used: 3, limit: 3, plan: "indie" });
+    await assert.rejects(requestCut(db, scene.id, WHO, { words: "A fourth" }), /3 changes are used\. Export it to keep going in Premiere or Resolve, or go Pro/);
+    // Loupe's own studio-sound version, and a version gone back to, are free.
+    await requestCut(db, scene.id, WHO, { counted: false });
+    const [studio] = await db.select().from(cuts).where(eq(cuts.status, "waiting"));
+    assert.equal((studio.direction as { studioSound?: boolean }).studioSound, true);
+    await finish();
+    await db.insert(cuts).values({ projectId: scene.id, status: "done", result: { title: "back", restoredFrom: 1 } as never });
+    assert.equal((await sceneChanges(db, scene.id)).used, 3);
+    // On Pro: 10.
+    await db.update(accounts).set({ plan: "pro", subscriptionStatus: "active" }).where(eq(accounts.id, ACCT));
+    assert.deepEqual(await sceneChanges(db, scene.id), { used: 3, limit: 10, plan: "pro" });
+    await requestCut(db, scene.id, WHO, { words: "A fourth, on Pro" });
   });
 });
 

@@ -43,6 +43,7 @@ function labelOf(row: Row, before: Row | null, n: (id: number) => number | null)
   const d = row.direction as Direction | null;
   const back = result?.restoredFrom ?? d?.restoredFrom;
   if (back) return `Back to version ${n(back) ?? "earlier"}`;
+  if (d?.studioSound) return "Studio sound, for the export";
   if (!before) return "First cut";
   const notes = (d?.notes ?? []).filter((x) => x.reply !== null);
   const earlier = new Set(((before.direction as Direction | null)?.notes ?? []).map((x) => x.at));
@@ -109,7 +110,7 @@ export async function restoreVersion(db: Db, projectId: number, id: number, by: 
 /** An older version made again from its own choices. */
 async function requestCutWith(db: Db, projectId: number, by: string, source: Row, direction: Direction | null, how: RestoredHow): Promise<CutView> {
   const d: Direction = { ...(direction ?? {}), notes: (direction?.notes ?? []).filter((n) => n.reply !== null), restoredFrom: source.id, restoredHow: how };
-  return requestCut(db, projectId, by, { scriptId: source.scriptId, leadRole: source.leadRole, direction: d });
+  return requestCut(db, projectId, by, { scriptId: source.scriptId, leadRole: source.leadRole, direction: d, counted: false });
 }
 
 /** A version's own choices: a "go back" copy stands for the version it went back to. */

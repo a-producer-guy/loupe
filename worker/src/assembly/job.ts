@@ -159,12 +159,18 @@ export async function lastDoneRow(sql: Sql, projectId: number, before: number) {
  * the queued words as the note to read.
  */
 export async function unqueue(sql: Sql, job: AssemblyJob, workerId: string): Promise<AssemblyJob> {
-  const raw = (job.direction && typeof job.direction === "object" ? job.direction : {}) as { queued?: boolean; notes?: { note: string; reply: string | null; at: string }[] };
+  const raw = (job.direction && typeof job.direction === "object" ? job.direction : {}) as { queued?: boolean; studioSound?: boolean; notes?: { note: string; reply: string | null; at: string }[] };
   if (!raw.queued) return job;
   const before = await lastDoneRow(sql, job.project_id, job.id);
   const words = (raw.notes ?? []).filter((n) => n.reply === null).map((n) => n.note).join(" Then: ");
-  const base = before?.direction ?? {};
-  const direction = { ...base, notes: [...(base.notes ?? []).filter((n) => n.reply !== null), ...(words ? [{ note: words, reply: null, at: new Date().toISOString() }] : [])] };
+  // The version before's choices, without what only described that version (going back, the studio sound).
+  const { restoredFrom: _from, restoredHow: _how, studioSound: _studio, ...base } = (before?.direction ?? {}) as Record<string, unknown> & { notes?: { note: string; reply: string | null; at: string }[] };
+  void [_from, _how, _studio];
+  const direction = {
+    ...base,
+    notes: [...(base.notes ?? []).filter((n) => n.reply !== null), ...(words ? [{ note: words, reply: null, at: new Date().toISOString() }] : [])],
+    ...(raw.studioSound ? { studioSound: true } : {}),
+  };
   const next = {
     ...job,
     script_id: job.script_id ?? before?.scriptId ?? null,
@@ -339,7 +345,8 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
       await saveDirection(ctx.sql, job.id, ctx.workerId, direction);
       log(`Note: "${pending.note}" → ${reading?.remake ? "making it again" : "no change"}: ${reply}`);
       if (!reading?.remake) {
-        if (previous) await finishAssembly(ctx.sql, job.id, ctx.workerId, previous);
+        // Nothing to change (a question, or nothing Loupe could do): the same cut, and not one of the scene's changes.
+        if (previous) await finishAssembly(ctx.sql, job.id, ctx.workerId, { ...previous, unchanged: true });
         else await failAssembly(ctx.sql, { ...job, attempts: MAX_ATTEMPTS }, ctx.workerId, reply);
         return;
       }

@@ -157,6 +157,9 @@ export function CommandBar({
   };
 
   const sugs = suggestions(dept, scope, cut);
+  // Changes Loupe makes to this scene: Indie 3, Pro 10, Studio 30 (Guy, Oct 9). Then it's finished in Premiere or Resolve.
+  const left = Math.max(0, cut.changes.limit - cut.changes.used);
+  const out = Boolean(result) && left === 0;
   const narrow = scope.kind !== "scene";
   const pickScope = (s: Scope) => {
     onScope(s);
@@ -272,14 +275,16 @@ export function CommandBar({
             <button
               key={s.text}
               type="button"
-              disabled={busy}
+              disabled={busy || out}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => void (s.extra ? onExtra(s.extra.extra, s.extra.on) : send(s.text))}
             >
               {s.text}
             </button>
           ))}
-          <span className="hint">/ for commands · ⌥1–4 to switch</span>
+          <span className="hint">
+            {left} of {cut.changes.limit} changes left · / for commands · ⌥1–4 to switch
+          </span>
         </div>
       )}
       <form
@@ -306,8 +311,8 @@ export function CommandBar({
           onChange={(e) => setText(e.target.value)}
           onFocus={() => (setFocused(true), setAbout(false))}
           onBlur={() => setFocused(false)}
-          placeholder={result ? placeholder(dept, scope) : "Loupe is cutting the scene…"}
-          disabled={!result}
+          placeholder={!result ? "Loupe is cutting the scene…" : out ? `This scene's ${cut.changes.limit} changes are used: export it to keep going in Premiere or Resolve` : placeholder(dept, scope)}
+          disabled={!result || out}
           aria-label="Tell Loupe what to change"
           maxLength={500}
         />
