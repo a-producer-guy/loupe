@@ -46,8 +46,11 @@ export function ExportSheet({
   onStart,
   onAgain,
   onClose,
+  final,
 }: {
   sceneId: number;
+  /** The final files as given, instead of asked of the server (the landing page's demo). */
+  final?: FinalState;
   /** Make the version again (one cut before finals existed). */
   onAgain: () => void;
   result: CutResult;
@@ -79,7 +82,7 @@ export function ExportSheet({
     <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="exportH" onClick={(e) => e.target === e.currentTarget && !working && onClose()}>
       <div className="sheet-card">
         <h2 id="exportH">{state.step === "done" && app ? `Ready for ${APPS[app].name}` : "Export"}</h2>
-        <FinalFile sceneId={sceneId} onAgain={onAgain} />
+        <FinalFile sceneId={sceneId} onAgain={onAgain} given={final} />
         <h3 className="sheet-k">Or keep editing</h3>
         <div className="file">{xml}</div>
 
@@ -137,14 +140,15 @@ export function ExportSheet({
   );
 }
 
-type FinalState = { cutId: number | null; canMake: boolean; topazCost: number | null; finals: FinalView[] };
+export type FinalState = { cutId: number | null; canMake: boolean; topazCost: number | null; finals: FinalView[] };
 
 /**
  * The final file: the newest version built again from the camera originals at full resolution, with its look and
  * mix. Asked for here; the worker makes it (a few minutes); then it saves straight to the computer.
  */
-function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void }) {
-  const [state, setState] = useState<FinalState | null>(null);
+function FinalFile({ sceneId, onAgain, given }: { sceneId: number; onAgain: () => void; given?: FinalState }) {
+  const [asked, setState] = useState<FinalState | null>(null);
+  const state = given ?? asked;
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -157,6 +161,7 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
   const going = busy(original) || busy(topaz);
   useEffect(() => {
     // An effect that only subscribes to the server: the first read, then every few seconds while it's being made.
+    if (given) return;
     let alive = true;
     const tick = () => alive && void load();
     tick();
@@ -165,8 +170,9 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
       alive = false;
       clearInterval(id);
     };
-  }, [load, going]);
+  }, [load, going, given]);
   const make = async (kind: "original" | "topaz" = "original") => {
+    if (given) return;
     setAsking(true);
     setError(null);
     const response = await fetch(`/api/shoots/${sceneId}/final`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind }) }).catch(() => null);

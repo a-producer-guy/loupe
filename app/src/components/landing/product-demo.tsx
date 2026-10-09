@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CommandBar } from "@/components/room/command-bar";
+import { ExportSheet, type FinalState } from "@/components/room/export-sheet";
+import type { DownloadState } from "@/components/shoots/use-download";
 import { Ingest } from "@/components/room/ingest";
 import { Suite, type Scope } from "@/components/room/suite";
 import { CUT_STEPS, type CutResult, type CutView, type RoomCut, type Shot } from "@/lib/footage/cut-types";
@@ -10,10 +12,11 @@ import type { ShootProgress } from "@/lib/upload/manager";
 import "@/components/room/room.css";
 
 // The landing page's "how it works", played in the product itself: the real upload screen, the real "Loupe is cutting"
-// screen, the real cutting room and the real command bar, fed a scripted stand-in scene (drawn frames in
+// screen, the real cutting room, command bar and export sheet, fed a scripted stand-in scene (drawn frames in
 // public/demo, so no one's footage is used) instead of the server. One clock drives it: the cards go in, the
 // proxies make themselves, Loupe cuts the scene, the cut plays, a line's other takes fan out, a note is typed and a
-// new version comes back. It pauses off screen; with less motion asked for it opens on the finished cut and waits.
+// new version comes back, then the export (the final, 4K with Topaz, the XML timeline for Resolve). It pauses off
+// screen; with less motion asked for it opens on the finished cut and waits.
 
 const STILL = (take: string) => `/demo/take-${take}.jpg`;
 const GB = 1e9;
@@ -50,7 +53,13 @@ const NOTE_AT = TRAY_DONE + 0.5;
 const NOTE = "More tired on this one";
 const SEND_AT = NOTE_AT + NOTE.length * 0.05 + 0.5;
 const V2_AT = SEND_AT + 3.4;
-const LOOP = V2_AT + 6.5;
+const EXPORT_AT = V2_AT + 5.5;
+const FINAL_DONE = EXPORT_AT + 2.6;
+const TOPAZ_AT = FINAL_DONE + 1.2;
+const TOPAZ_DONE = TOPAZ_AT + 2.6;
+const XML_AT = TOPAZ_DONE + 1;
+const SAVED = XML_AT + 2.2;
+const LOOP = SAVED + 5;
 
 const CHAPTERS = [
   { at: 0, h: "Drop the cards", p: "Camera cards, sound and the script, in one drag. Every file is checked as it lands." },
@@ -59,6 +68,11 @@ const CHAPTERS = [
   { at: DONE_AT, h: "Watch your first cut", p: "Every shot has a reason. The script follows the picture." },
   { at: TRAY_AT, h: "Hear every take", p: "Open any line to see it in every take, side by side, and swap with one click." },
   { at: NOTE_AT, h: "Give a note", p: "Say what you want in plain words. Loupe makes a new version." },
+  {
+    at: EXPORT_AT,
+    h: "Export",
+    p: "Download the finished scene at full resolution, sharpen it to 4K with Topaz, or take an XML timeline into Premiere Pro or DaVinci Resolve and keep editing.",
+  },
 ];
 
 const clipAt = (i: number, t: number) => {
@@ -311,6 +325,34 @@ function cutAt(t: number): RoomCut {
   return { ...base, latest: v2, done: v2, working: null, waiting: null, versions: 2, preview: "/demo/cut-v2.mp4", previous: "/demo/cut-v1.mp4" };
 }
 
+// The export: the final built from the camera files, then 4K with Topaz, then the timeline saved for Resolve.
+function finalAt(t: number): FinalState {
+  const base = { id: 1, cutId: 2, error: null, download: "#" };
+  const finals: FinalState["finals"] = [
+    t < FINAL_DONE
+      ? { ...base, kind: "original", status: "working", progress: (t - EXPORT_AT) / (FINAL_DONE - EXPORT_AT), width: null, height: null, sizeBytes: null, download: null }
+      : { ...base, kind: "original", status: "done", progress: 1, width: 1920, height: 1080, sizeBytes: 1.4 * GB },
+  ];
+  if (t >= TOPAZ_AT)
+    finals.push(
+      t < TOPAZ_DONE
+        ? { ...base, id: 2, kind: "topaz", status: "working", progress: ((t - TOPAZ_AT) / (TOPAZ_DONE - TOPAZ_AT)) * 0.9, width: null, height: null, sizeBytes: null, download: null }
+        : { ...base, id: 2, kind: "topaz", status: "done", progress: 1, width: 3840, height: 2160, sizeBytes: 4.8 * GB },
+    );
+  return { cutId: 2, canMake: true, topazCost: 3.2, finals };
+}
+
+function savingAt(t: number): DownloadState {
+  if (t < XML_AT) return { step: "idle" };
+  const files = 24;
+  const bytes = 18.7 * GB;
+  if (t < SAVED) {
+    const k = (t - XML_AT) / (SAVED - XML_AT);
+    return { step: "working", files, filesDone: Math.floor(files * k), bytes, bytesDone: bytes * k };
+  }
+  return { step: "done", folder: "The Ring, scene 12", files, bytes };
+}
+
 const noop = () => {};
 const yes = async () => true;
 
@@ -421,6 +463,13 @@ export function ProductDemo() {
       }
       at("send", SEND_AT, s, () => click(".cmdbar .send"));
       at("v2", V2_AT + 0.3, s, () => play(9.3));
+      // The export sheet scrolls itself, inside its own card.
+      const sheet = () => {
+        const card = screen.current?.querySelector<HTMLElement>(".sheet-card");
+        card?.scrollTo({ top: card.scrollHeight, behavior: "smooth" });
+      };
+      at("xml", XML_AT, s, () => (click(".sheet .app-choice:nth-child(2)"), setTimeout(sheet, 150)));
+      at("saved", SAVED + 0.1, s, () => setTimeout(sheet, 150));
       setT(s);
     }, 100);
     return () => clearInterval(timer);
@@ -451,7 +500,7 @@ export function ProductDemo() {
 
   return (
     <div className="grid gap-5">
-      <ol className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
+      <ol className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 lg:grid-cols-7">
         {CHAPTERS.map((c, i) => (
           <li key={c.h}>
             <button
@@ -531,6 +580,18 @@ export function ProductDemo() {
             {phase === "suite" && (
               <CommandBar cut={cut} dept="edit" onDept={noop} scope={scope} onScope={setScope} busy={false} onExtra={yes} onSend={yes} embedded />
             )}
+            {t >= EXPORT_AT && cut.done?.result && (
+              <ExportSheet
+                sceneId={1}
+                result={cut.done.result}
+                state={savingAt(q)}
+                supported
+                onStart={async () => null}
+                onAgain={noop}
+                onClose={noop}
+                final={finalAt(q)}
+              />
+            )}
             {dragging && <Drop t={t} />}
           </div>
         </div>
@@ -541,7 +602,8 @@ export function ProductDemo() {
       </p>
       <p className="sr-only">
         A demo of Loupe: the camera cards are dropped in and upload, proxies are made automatically, Loupe cuts the scene, the cut plays with a reason
-        for every shot, a line&apos;s other takes are opened, and a note is given that makes a new version.
+        for every shot, a line&apos;s other takes are opened, and a note is given that makes a new version, and the scene is exported: the full-resolution final, a 4K version made with Topaz,
+        and an XML timeline for DaVinci Resolve.
       </p>
     </div>
   );
