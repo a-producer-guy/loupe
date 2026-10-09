@@ -3,11 +3,11 @@
 // Loupe, the character: a small round body on two feet with one camera-aperture eye and a red
 // "recording" pupil. He shows how he's doing through the aperture (idle, listening, thinking,
 // happy), holds his department's prop (scissors, headphones, paintbrush) and giggles when the
-// pointer tickles him. Drawn in SVG on a 40 × 44 grid; the 3D version (loupe-3d.ts) takes over
+// pointer tickles him; on the landing page he plays with his scissors. Drawn in SVG on a 40 × 44 grid; the 3D version (loupe-3d.ts) takes over
 // on bigger stages once it has drawn, with this drawing as its fallback.
 
-import { useEffect, useId, useRef, useState } from "react";
-import type { Loupe3D } from "./loupe-3d";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import type { Loupe3D, Trick } from "./loupe-3d";
 
 export type LoupeMood = "idle" | "listen" | "think" | "happy";
 export type LoupeDept = "edit" | "sound" | "color" | "preview";
@@ -23,6 +23,9 @@ const BLADES = VERTS.map(([x, y], i) => {
   return [x, y, x + (x - qx) * 1.15, y + (y - qy) * 1.15] as const;
 });
 const GIGGLES = ["hehe", "hee hee", "that tickles!", "hehehe", "stop, that tickles!"];
+// How long each trick takes (the same as in 3D), and the ones the drawing can do.
+const TRICK_MS: Record<Trick, number> = { snip: 900, twirl: 1100, juggle: 1500, double: 2400, haircut: 1700 };
+const DRAWN_TRICKS: Trick[] = ["snip", "twirl", "juggle", "juggle", "double"];
 
 export function Loupe({
   size = 40,
@@ -32,6 +35,8 @@ export function Loupe({
   className = "",
   label,
   three = false,
+  playful = false,
+  snips = 0,
 }: {
   size?: number;
   mood?: LoupeMood;
@@ -42,18 +47,55 @@ export function Loupe({
   label?: string;
   /** The 3D Loupe, for big stages. The drawing stays until 3D has drawn, and returns if it fails. */
   three?: boolean;
+  /** Plays with his scissors now and then (the landing page only: in the app he keeps his hands still). */
+  playful?: boolean;
+  /** Snip snip: each time this goes up, he snips (the landing page's header act). */
+  snips?: number;
 }) {
   const pupil = useRef<SVGCircleElement>(null);
   const host = useRef<HTMLSpanElement>(null);
   const live = useRef<Loupe3D | null>(null);
   const [threeOn, setThreeOn] = useState(false);
-  const latest = useRef({ mood, dept });
+  const latest = useRef({ mood, dept, playful });
+  const [trick, setTrick] = useState<{ name: Trick; key: number } | null>(null);
 
   // Keep the 3D Loupe (once loaded) in the same mood and hat as the drawing.
   useEffect(() => {
-    latest.current = { mood, dept };
+    latest.current = { mood, dept, playful };
     live.current?.set(mood, dept);
-  }, [mood, dept]);
+    live.current?.playful(playful);
+  }, [mood, dept, playful]);
+
+  // A trick, in 3D and in the drawing alike.
+  const play = useCallback((name: Trick) => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    live.current?.trick(name);
+    const key = performance.now();
+    setTrick({ name, key });
+    setTimeout(() => setTrick((x) => (x?.key === key ? null : x)), TRICK_MS[name]);
+  }, []);
+
+  // Snip snip, on cue.
+  const lastSnips = useRef(snips);
+  useEffect(() => {
+    if (snips === lastSnips.current) return;
+    lastSnips.current = snips;
+    play("snip");
+  }, [snips, play]);
+
+  // The drawing's own tricks when he's playful and idle (the 3D Loupe picks his own).
+  useEffect(() => {
+    if (!playful || dept !== "edit" || mood !== "idle" || threeOn || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const next = () => {
+      timer = setTimeout(() => {
+        play(DRAWN_TRICKS[Math.floor(Math.random() * DRAWN_TRICKS.length)]);
+        next();
+      }, 3200 + Math.random() * 4300);
+    };
+    next();
+    return () => clearTimeout(timer);
+  }, [playful, dept, mood, threeOn, play]);
 
   // The 3D Loupe loads only where asked for, after the page has drawn, once he's nearly on screen (building him
   // takes a moment, so Loupes further down a page wait their turn).
@@ -69,6 +111,7 @@ export function Loupe({
           if (gone || !host.current) return;
           live.current = mountLoupe3D(host.current, size, () => setThreeOn(true), () => setThreeOn(false));
           live.current?.set(latest.current.mood, latest.current.dept);
+          live.current?.playful(latest.current.playful);
         });
       },
       { rootMargin: "200px" },
@@ -111,7 +154,7 @@ export function Loupe({
   return (
     <span
       ref={host}
-      className={`loupe loupe-${mood} ${ticklish ? "loupe-ticklish" : ""} ${threeOn ? "loupe-3d-on" : ""} ${className}`}
+      className={`loupe loupe-${mood} ${ticklish ? "loupe-ticklish" : ""} ${threeOn ? "loupe-3d-on" : ""} ${trick ? `loupe-trick-${trick.name}` : ""} ${className}`}
       data-dept={dept}
       style={{ width: size, height: Math.round(size * 1.1) }}
       onPointerEnter={tickle}
@@ -149,11 +192,20 @@ export function Loupe({
           <rect x="37.8" y="17.6" width="1.6" height="6.6" rx=".8" fill="#3D7BE0" />
         </g>
         <g className="loupe-prop loupe-prop-edit">
-          <g transform="translate(33.2 26) rotate(-24) scale(1.18)">
-            <path d="M1.6 6.6 L6.2 -5.2 M3.6 6.6 L-1 -5.2" stroke="#8E8E87" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="2.6" cy="2.6" r=".75" fill="#161614" />
-            <circle cx="0" cy="9" r="2.5" fill="#FFFFFF" stroke="#E2452B" strokeWidth="1.4" />
-            <circle cx="5.2" cy="9" r="2.5" fill="#FFFFFF" stroke="#E2452B" strokeWidth="1.4" />
+          <g className="loupe-toss">
+            <g transform="translate(33.2 26) rotate(-24) scale(1.18)">
+              <g className="loupe-sc">
+                <g className="loupe-half loupe-half-a">
+                  <path d="M1.6 6.6 L6.2 -5.2" stroke="#8E8E87" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="0" cy="9" r="2.5" fill="#FFFFFF" stroke="#E2452B" strokeWidth="1.4" />
+                </g>
+                <g className="loupe-half loupe-half-b">
+                  <path d="M3.6 6.6 L-1 -5.2" stroke="#8E8E87" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="5.2" cy="9" r="2.5" fill="#FFFFFF" stroke="#E2452B" strokeWidth="1.4" />
+                </g>
+                <circle cx="2.6" cy="2.6" r=".75" fill="#161614" />
+              </g>
+            </g>
           </g>
         </g>
         <g className="loupe-prop loupe-prop-color">

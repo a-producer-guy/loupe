@@ -47,7 +47,7 @@ export function GruntWork() {
               className={`text-right text-[13.5px] tabular-nums transition-colors duration-500 motion-reduce:transition-none ${on ? "text-faint" : "text-muted"}`}
               style={{ transitionDelay: `${i * STEP}ms` }}
             >
-              <Snip cut={on} delay={i * STEP}>
+              <Snip cut={on} delay={i * STEP} seed={i}>
                 {hm(c.mins)}
               </Snip>
             </span>
@@ -64,7 +64,7 @@ export function GruntWork() {
         <div className="flex items-baseline justify-between gap-4 text-[14px] text-white/60">
           <span>By hand, every scene</span>
           <span className="tabular-nums">
-            <Snip cut={on} delay={CHORES.length * STEP}>
+            <Snip cut={on} delay={CHORES.length * STEP} seed={CHORES.length}>
               {hm(TOTAL)}
             </Snip>
           </span>

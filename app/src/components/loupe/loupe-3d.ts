@@ -1,8 +1,10 @@
 // Loupe in 3D, built in the browser from the recipe in Guy's Loupe-3D pack (Loupe-model.js): the
 // white body, short brown fur, nub hands, dark feet and the aperture eye. He blinks, turns to
 // follow the pointer, opens and spins his iris, smiles with a hop, squirms when tickled and holds
-// his department's prop. Loaded only on big stages (landing, sign-in, New scene); the 2D drawing
-// shows until this has drawn its first frame, and comes back if WebGL fails.
+// his department's prop. His scissors snip while he works, and on the landing page he plays with
+// them (snips, twirls, juggles, a risky double toss, a haircut). Loaded only on big stages (landing,
+// sign-in, New scene); the 2D drawing shows until this has drawn its first frame, and comes back if
+// WebGL fails.
 
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -130,6 +132,8 @@ type Parts = {
   smile: THREE.Group;
   hands: Record<-1 | 1, THREE.Mesh>;
   props: Partial<Record<LoupeDept, THREE.Group>>;
+  /** The scissors: tossed and spun as a whole, each half opening on the pivot. */
+  scissors: { toss: THREE.Group; halves: Record<-1 | 1, THREE.Group> };
 };
 
 function buildLoupe(furCount: number): Parts {
@@ -239,8 +243,10 @@ function buildLoupe(furCount: number): Parts {
   props.edit = edit;
   body.add(edit);
   edit.position.set(1.16, C - 0.2, 0.72);
+  const toss = new THREE.Group();
+  edit.add(toss);
   const sc = new THREE.Group();
-  edit.add(sc);
+  toss.add(sc);
   sc.rotation.set(0.15, -0.35, -0.55);
   sc.scale.setScalar(1.75);
   const blade = new THREE.Shape();
@@ -250,9 +256,16 @@ function buildLoupe(furCount: number): Parts {
   blade.lineTo(-0.005, 0.42);
   blade.closePath();
   const bladeGeo = new THREE.ExtrudeGeometry(blade, { depth: 0.016, bevelEnabled: false });
-  for (const s of [-1, 1]) {
-    add(bladeGeo, metal, sc, [0, -0.06, s * 0.009]).rotation.z = s * 0.22;
-    add(new THREE.TorusGeometry(0.078, 0.026, 10, 28), mat("#E2452B", 0.4), sc, [s * -0.085, -0.2, 0]);
+  const ringMat = mat("#E2452B", 0.4);
+  const halves = {} as Record<-1 | 1, THREE.Group>;
+  for (const s of [-1, 1] as const) {
+    // One half of the scissors: a blade above the pivot and the ring for it below, on the other side.
+    const half = new THREE.Group();
+    half.position.set(0, -0.06, 0);
+    sc.add(half);
+    halves[s] = half;
+    add(bladeGeo, metal, half, [0, 0, s * 0.009]).rotation.z = s * 0.22;
+    add(new THREE.TorusGeometry(0.078, 0.026, 10, 28), ringMat, half, [s * 0.085, -0.14, 0]);
   }
   add(sphere, ink, sc, [0, -0.06, 0.022], [0.024, 0.024, 0.024]);
   const color = new THREE.Group();
@@ -270,7 +283,7 @@ function buildLoupe(furCount: number): Parts {
     p.visible = false;
     p.userData.pop = 0;
   }
-  return { root, body, lid, aperture, buildAperture, pupil, pupilMat, smile, hands, props };
+  return { root, body, lid, aperture, buildAperture, pupil, pupilMat, smile, hands, props, scissors: { toss, halves } };
 }
 
 /* ---- one shared animation loop for every 3D Loupe on the page ---- */
@@ -291,6 +304,22 @@ function track(event: PointerEvent) {
   pointer.t = performance.now();
 }
 
+/* ---- scissor tricks: what Loupe gets up to with his scissors on the landing page ---- */
+export type Trick = "snip" | "twirl" | "juggle" | "double" | "haircut";
+const TRICK_MS: Record<Trick, number> = { snip: 900, twirl: 1100, juggle: 1500, double: 2400, haircut: 1700 };
+// How often each comes up when he's idle (the double is the risky one: rarer).
+const TRICK_ODDS: [Trick, number][] = [
+  ["juggle", 0.3],
+  ["twirl", 0.25],
+  ["snip", 0.2],
+  ["haircut", 0.13],
+  ["double", 0.12],
+];
+const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+const bump = (t: number, at: number, w: number) => Math.exp(-Math.pow((t - at) / w, 2));
+/** The blades over one snip (0 to 1): a quick close, a slower open. Rest is 0, shut is -0.21. */
+const snipAt = (p: number) => (p < 0.3 ? 0.15 - (0.36 * p) / 0.3 : -0.21 + (0.36 * (p - 0.3)) / 0.7);
+
 class LoupeView {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -308,6 +337,12 @@ class LoupeView {
   private tickle = 0;
   private tickling = false;
   private drawn = false;
+  private trick: { name: Trick; at: number } | null = null;
+  private lastTrick: Trick | null = null;
+  private nextTrick = performance.now() + 2500 + Math.random() * 3000;
+  private grinUntil = 0;
+  private squint = 1;
+  playful = false;
   dead = false;
 
   constructor(
@@ -364,6 +399,105 @@ class LoupeView {
     }
   }
 
+  doTrick(name: Trick) {
+    if (reduceMotion()) return;
+    this.trick = { name, at: performance.now() };
+    this.lastTrick = name;
+  }
+
+  /** The scissors this frame: a trick if one is on (or due, when he's playful and idle), else snipping while he works. */
+  private scissors(now: number, busy: boolean, reduce: boolean) {
+    const L = this.L;
+    const { toss, halves } = L.scissors;
+    let open = 0;
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    let spin = 0;
+    let look = 0;
+    let hand = 0;
+    this.squint = 1;
+    if (!this.trick && this.playful && this.mood === "idle" && !reduce && this.tickle < 0.05 && now > this.nextTrick) {
+      let pick = Math.random();
+      let name: Trick = "juggle";
+      for (const [t, odds] of TRICK_ODDS) if ((pick -= odds) <= 0) {
+        name = t;
+        break;
+      }
+      if (name === this.lastTrick) name = name === "juggle" ? "twirl" : "juggle";
+      this.doTrick(name);
+    }
+    const trick = this.trick;
+    if (trick) {
+      const t = (now - trick.at) / TRICK_MS[trick.name];
+      if (t >= 1) {
+        this.trick = null;
+        this.nextTrick = now + 3200 + Math.random() * 4300;
+      } else if (trick.name === "snip") {
+        // Snip snip snip, jabbing forward with each one.
+        const p = (t * 3) % 1;
+        open = snipAt(p);
+        z = 0.1 * Math.sin(p * Math.PI);
+        x = -0.04 * Math.sin(p * Math.PI);
+      } else if (trick.name === "twirl") {
+        // Round the finger twice, like a gunslinger.
+        spin = ease(t) * Math.PI * 4;
+        y = 0.12 * Math.sin(t * Math.PI);
+        hand = 0.25 * Math.sin(t * Math.PI);
+      } else if (trick.name === "juggle") {
+        // Up over his head, flipping, and caught again; his eye follows them.
+        y = 1.3 * 4 * t * (1 - t);
+        x = -0.6 * Math.sin(t * Math.PI);
+        spin = -t * Math.PI * 6;
+        open = -0.21;
+        look = -0.38 * Math.sin(t * Math.PI);
+        hand = 0.7 * (bump(t, 0.03, 0.08) + bump(t, 0.97, 0.08));
+      } else if (trick.name === "double") {
+        // A little toss, then a big one he's not sure about: he squints on the way down, the catch wobbles, then a grin.
+        if (t < 0.36) {
+          const u = t / 0.36;
+          y = 0.6 * 4 * u * (1 - u);
+          spin = -u * Math.PI * 2;
+          look = -0.2 * Math.sin(u * Math.PI);
+        } else {
+          const u = (t - 0.36) / 0.64;
+          const flight = Math.min(1, u / 0.82);
+          y = 1.5 * 4 * flight * (1 - flight);
+          x = -0.75 * Math.sin(flight * Math.PI);
+          spin = -Math.PI * 2 - flight * Math.PI * 8;
+          look = -0.45 * Math.sin(flight * Math.PI);
+          if (flight > 0.55 && flight < 1) this.squint = 0.3;
+          if (u > 0.82) {
+            const w = (u - 0.82) / 0.18;
+            spin += Math.sin(w * Math.PI * 5) * 0.5 * (1 - w);
+            L.body.rotation.z = Math.sin(w * Math.PI * 4) * 0.08 * (1 - w);
+            if (w > 0.6 && this.grinUntil < now) this.grinUntil = now + 900;
+          }
+        }
+        open = -0.21;
+        hand = 0.7 * (bump(t, 0.02, 0.06) + bump(t, 0.36, 0.06) + bump(t, 0.89, 0.06));
+      } else if (trick.name === "haircut") {
+        // A trim off the top: up to his fur, three snips, and back.
+        const go = t < 0.22 ? ease(t / 0.22) : t > 0.8 ? 1 - ease((t - 0.8) / 0.2) : 1;
+        x = -0.85 * go;
+        y = 1.15 * go;
+        z = -0.25 * go;
+        spin = 0.9 * go;
+        look = -0.3 * go;
+        hand = 0.5 * go;
+        if (t > 0.25 && t < 0.78) open = snipAt(((t - 0.25) / 0.53) * 3 % 1);
+      }
+    } else if (busy) {
+      open = snipAt((now / 420) % 1);
+    }
+    toss.position.set(x, y, z);
+    toss.rotation.z = spin;
+    halves[1].rotation.z = open;
+    halves[-1].rotation.z = -open;
+    L.body.rotation.x += look;
+    L.hands[1].rotation.z = -0.2 + hand;
+  }
+
   setTickling(on: boolean) {
     this.tickling = on;
     if (on) this.tickle = Math.max(this.tickle, 0.55);
@@ -418,13 +552,14 @@ class LoupeView {
       prop!.scale.setScalar(Math.max(0.01, t < 1 ? 1 + Math.sin(t * Math.PI) * 0.25 - (1 - t) * 0.9 : 1));
       const busy = this.mood === "think" && !reduce;
       if (name === "sound") prop!.position.y = busy ? Math.sin(now / 160) * 0.025 : 0;
+      else if (name === "edit") prop!.rotation.z = !busy && this.hop > 0 && !this.trick ? Math.sin((now - this.hop) / 80) * 0.15 : 0;
       else prop!.rotation.z = busy ? Math.sin(now / 140) * 0.12 : this.hop > 0 ? Math.sin((now - this.hop) / 80) * 0.15 : 0;
     }
     // Ticklish: squirm, giggle, flap.
     this.tickle = this.tickling ? Math.max(this.tickle * Math.pow(0.6, dt), 0.45) : this.tickle * Math.pow(0.04, dt);
     const a = reduce ? Math.min(this.tickle, 0.3) : this.tickle;
     const laughing = a > 0.25;
-    L.smile.visible = laughing || this.mood === "happy";
+    L.smile.visible = laughing || this.mood === "happy" || now < this.grinUntil;
     L.aperture.visible = !L.smile.visible;
     L.pupil.visible = !L.smile.visible;
     if (a > 0.01) {
@@ -437,6 +572,10 @@ class LoupeView {
     } else {
       L.body.rotation.z = 0;
       for (const s of [-1, 1] as const) L.hands[s].rotation.z = -s * 0.2;
+    }
+    if (L.props.edit?.visible && a <= 0.01) {
+      this.scissors(now, this.mood === "think" && !reduce, reduce);
+      lidY = Math.min(lidY, this.squint);
     }
     L.lid.scale.y = lidY;
     this.renderer.render(this.scene, this.camera);
@@ -454,6 +593,9 @@ class LoupeView {
 
 export type Loupe3D = {
   set: (mood: LoupeMood, dept: LoupeDept | undefined) => void;
+  /** Scissor tricks on his own now and then (the landing page), or not (the app). */
+  playful: (on: boolean) => void;
+  trick: (name: Trick) => void;
   tickling: (on: boolean) => void;
   wiggle: () => void;
   dispose: () => void;
@@ -493,6 +635,8 @@ export function mountLoupe3D(host: HTMLElement, size: number, onDrawn: () => voi
   }
   return {
     set: (mood, dept) => view.set(mood, dept),
+    playful: (on) => (view.playful = on),
+    trick: (name) => view.doTrick(name),
     tickling: (on) => view.setTickling(on),
     wiggle: () => view.wiggle(),
     dispose: () => {

@@ -25,7 +25,7 @@ export function Hats() {
           className="grid min-w-0 justify-items-start gap-1.5 rounded-[18px] bg-surface p-4 shadow-lift-sm ring-1 ring-line transition hover:shadow-lift sm:p-5"
           style={over === h.dept ? { ["--tw-ring-color" as string]: h.dept === "preview" ? "#161614" : DEPT_COLOR[h.dept] } : undefined}
         >
-          <Loupe size={76} dept={h.dept} mood={over === h.dept ? "happy" : "idle"} three label={`Loupe in ${h.name} mode`} />
+          <Loupe size={76} dept={h.dept} mood={over === h.dept ? "happy" : "idle"} three playful label={`Loupe in ${h.name} mode`} />
           <span className="mt-1 flex items-center gap-2 text-[16px] font-semibold">
             {h.name}
             <kbd className="rounded-[5px] bg-bg px-1.5 font-mono text-[11px] font-normal text-faint ring-1 ring-line">{h.key}</kbd>
