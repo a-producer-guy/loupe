@@ -4,6 +4,7 @@ import { requireMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { accountView, PLANS } from "@/lib/footage/account-view";
 import { formatBytes } from "@/lib/footage/names";
+import { ChoosePlan, ManageBilling, PlanReturn } from "./plan-actions";
 
 const PLAN_NAME = { free: "Free", indie: "Indie", pro: "Pro", studio: "Studio" } as const;
 
@@ -11,12 +12,14 @@ export default async function PlanPage() {
   const member = await requireMember();
   const account = await accountView(getDb(), member.accountId);
   const { usage, limits } = account;
+  const owner = member.role === "owner";
   const sceneShare = limits.scenes ? Math.min(1, usage.scenes / limits.scenes) : 0;
   const byteShare = limits.bytes ? Math.min(1, usage.bytes / limits.bytes) : 0;
 
   return (
     <>
       <TopBar crumbs={[{ label: "Plan and billing" }]} />
+      <PlanReturn />
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pb-16 pt-8 sm:px-8">
           <h1 className="text-[30px] font-semibold tracking-[-0.035em]">Plan and billing</h1>
@@ -27,13 +30,17 @@ export default async function PlanPage() {
               <p className="mt-1 text-[44px] font-light leading-none tracking-[-0.05em]">{PLAN_NAME[account.plan]}</p>
               <p className="mt-2 text-[14px] text-muted">
                 {account.plan === "free"
-                  ? "Your first scene is free: upload it, watch Loupe work and direct it."
-                  : "Thanks for being on Loupe."}
+                  ? "Your first scene is free: upload it, watch Loupe work, direct it and export it."
+                  : account.plan === "indie"
+                    ? "You pay $39 when you export a scene. Nothing else."
+                    : account.billing.status === "past_due"
+                      ? "Your last payment didn't go through. Stripe will try again; update your card to keep your plan."
+                      : `Thanks for being on Loupe.${account.billing.periodEnd ? ` Renews ${new Date(account.billing.periodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric" })}.` : ""}`}
               </p>
               {limits.scenes !== null && (
                 <div className="mt-5 grid gap-4">
-                  <Meter label="Scenes" value={`${usage.scenes} of ${limits.scenes}`} share={sceneShare} />
-                  <Meter label="Footage" value={`${formatBytes(usage.bytes)} of ${formatBytes(limits.bytes ?? 0)}`} share={byteShare} />
+                  <Meter label="Scenes waiting to export" value={`${usage.scenes} of ${limits.scenes}`} share={sceneShare} />
+                  <Meter label="Their footage" value={`${formatBytes(usage.bytes)} of ${formatBytes(limits.bytes ?? 0)}`} share={byteShare} />
                 </div>
               )}
             </div>
@@ -43,7 +50,9 @@ export default async function PlanPage() {
               <p className="mt-2 text-[14px] text-white/70">
                 Uploading, watching Loupe cut and directing your scene are free. You pay to take the Premiere timeline home.
               </p>
-              <p className="mt-4 border-t border-white/15 pt-4 text-[13px] text-white/60">Paid plans open at launch. Until then, your first scene is on us.</p>
+              <div className="mt-4 border-t border-white/15 pt-4 text-[13px] text-white/60">
+                {account.billing.customer && owner ? <ManageBilling /> : "Payments are on Stripe's own page. Loupe never sees your card."}
+              </div>
             </div>
           </section>
 
@@ -70,6 +79,13 @@ export default async function PlanPage() {
                       </li>
                     ))}
                   </ul>
+                  {plan.id === "indie" ? (
+                    <p className="text-[12.5px] text-faint">Nothing to choose: pay when you export.</p>
+                  ) : current ? (
+                    <p className="text-[12.5px] text-faint">Your plan. Change or cancel it under “How you pay”.</p>
+                  ) : (
+                    <ChoosePlan plan={plan.id} label={`Choose ${plan.name}`} owner={owner} />
+                  )}
                 </div>
               );
             })}

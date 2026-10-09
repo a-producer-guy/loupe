@@ -13,6 +13,8 @@ export type AccountView = {
   usage: { scenes: number; bytes: number };
   limits: { scenes: number | null; bytes: number | null };
   people: { email: string; role: string; createdAt: string }[];
+  /** Stripe: whether there's a billing page to open, and the plan's subscription (status and when it renews). */
+  billing: { customer: boolean; status: string | null; periodEnd: string | null };
 };
 
 export async function accountView(db: Db, accountId: number): Promise<AccountView> {
@@ -31,6 +33,7 @@ export async function accountView(db: Db, accountId: number): Promise<AccountVie
     usage: await accountUsage(db, accountId),
     limits: { scenes: Number.isFinite(limit.scenes) ? limit.scenes : null, bytes: Number.isFinite(limit.bytes) ? limit.bytes : null },
     people: people.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })),
+    billing: { customer: Boolean(account.stripeCustomerId), status: account.subscriptionStatus, periodEnd: account.periodEnd?.toISOString() ?? null },
   };
 }
 

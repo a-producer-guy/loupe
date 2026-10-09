@@ -350,19 +350,22 @@ describe("accounts", () => {
     assert.equal(canWrite({ role: "viewer" }), false);
   });
 
-  test("the free plan holds one scene's worth of footage: a drop over 25 GB is undone", async () => {
+  test("pay-as-you-go holds 500 GB of footage waiting to be exported: a drop over it is undone; exported scenes don't count", async () => {
     const free = await ensureMember("indie@gmail.com", db);
     const shoot = await createShoot(db, { accountId: free.accountId, name: "First", shootDate: "2026-09-23", createdBy: free.email });
     await assert.rejects(
-      registerDrop(db, shoot.id, [card("A001", [["C0001.MP4", 20e9], ["C0002.MP4", 6e9]])], free.email),
-      /free plan holds/,
+      registerDrop(db, shoot.id, [card("A001", [["C0001.MP4", 400e9], ["C0002.MP4", 150e9]])], free.email),
+      /waiting to be exported can hold/,
     );
     assert.deepEqual(await accountUsage(db, free.accountId), { scenes: 1, bytes: 0 }, "nothing from the refused drop was kept");
-    const ok = await registerDrop(db, shoot.id, [card("A001", [["C0001.MP4", 20e9]])], free.email);
+    const ok = await registerDrop(db, shoot.id, [card("A001", [["C0001.MP4", 400e9]])], free.email);
     assert.equal(ok[0].files.length, 1);
-    const again = await registerDrop(db, shoot.id, [card("A001", [["C0001.MP4", 20e9]])], free.email);
+    const again = await registerDrop(db, shoot.id, [card("A001", [["C0001.MP4", 400e9]])], free.email);
     assert.equal(again[0].files[0].state, "upload", "dropping the same card again isn't counted twice");
-    assert.equal(PLAN_LIMITS.free.scenes, 1);
+    // Once exported, a scene no longer counts.
+    await db.update(projects).set({ unlockedAt: new Date(), unlockedHow: "free" }).where(eq(projects.id, shoot.id));
+    assert.deepEqual(await accountUsage(db, free.accountId), { scenes: 0, bytes: 0 });
+    assert.equal(PLAN_LIMITS.free.scenes, 3);
     assert.equal(PLAN_LIMITS.studio.bytes, Infinity);
   });
 });

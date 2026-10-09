@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { DownloadState } from "@/components/shoots/use-download";
 import { Ring } from "@/components/ui/progress";
 import type { CutResult, FinalView } from "@/lib/footage/cut-types";
+import type { SceneBilling } from "@/lib/billing";
 import { formatBytes } from "@/lib/footage/names";
 
 // Export (the mockup's "Premiere timeline" sheet): pick the editing app, the scene downloads laid out as it is in
@@ -57,6 +58,20 @@ export function ExportSheet({
   onClose: () => void;
 }) {
   const [app, setApp] = useState<App | null>(null);
+  const [billing, setBilling] = useState<SceneBilling | null>(null);
+  const loadBilling = useCallback(async () => {
+    const response = await fetch(`/api/shoots/${sceneId}/unlock`, { cache: "no-store" }).catch(() => null);
+    if (response?.ok) setBilling(((await response.json()) as { billing: SceneBilling }).billing);
+  }, [sceneId]);
+  useEffect(() => {
+    // An effect that only subscribes to the server: what exporting this scene takes.
+    let alive = true;
+    const read = () => alive && void loadBilling();
+    read();
+    return () => {
+      alive = false;
+    };
+  }, [loadBilling]);
   const xml = `${result.title} - Loupe cut.xml`;
   const working = state.step === "working";
   const choose = async (a: App) => {
@@ -79,60 +94,110 @@ export function ExportSheet({
     <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="exportH" onClick={(e) => e.target === e.currentTarget && !working && onClose()}>
       <div className="sheet-card">
         <h2 id="exportH">{state.step === "done" && app ? `Ready for ${APPS[app].name}` : "Export"}</h2>
-        <FinalFile sceneId={sceneId} onAgain={onAgain} />
-        <h3 className="sheet-k">Or keep editing</h3>
-        <div className="file">{xml}</div>
+        {!billing ? (
+          <p className="fine">One moment…</p>
+        ) : !billing.unlocked ? (
+          <Unlock sceneId={sceneId} billing={billing} onUnlocked={loadBilling} />
+        ) : (
+          <>
+            <FinalFile sceneId={sceneId} onAgain={onAgain} />
+            <h3 className="sheet-k">Or keep editing</h3>
+            <div className="file">{xml}</div>
 
-        {!app || state.step === "idle" || state.step === "error" ? (
-          <>
-            <div className="apps">
-              {(Object.keys(APPS) as App[]).map((a) => (
-                <button key={a} type="button" className="app-choice" disabled={!supported} onClick={() => void choose(a)}>
-                  <span className="app-mark" aria-hidden="true">
-                    {APPS[a].logo ? <img src={APPS[a].logo!} alt="" /> : <span>{APPS[a].name.split(" ").map((w) => w[0]).join("")}</span>}
-                  </span>
-                  <span>
-                    <b>{APPS[a].name}</b>
-                    <small>{APPS[a].maker}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-            {state.step === "error" && <p className="bad">{state.message} Pick the app again to carry on where it stopped.</p>}
-            {!supported && <p>Exporting saves the scene into a folder you choose, which needs Chrome or Edge.</p>}
-            <p>You pick a folder; the scene goes into it as it sits in Loupe: the camera files, the proxies, and “Loupe Cut” with the timeline, a preview and the cleaned sound.</p>
-          </>
-        ) : working ? (
-          <div className="exporting">
-            <Ring value={state.bytesDone / Math.max(1, state.bytes)} size={22} stroke={3} />
-            <span>
-              Saving {state.filesDone} of {state.files} files · {formatBytes(state.bytesDone)} of {formatBytes(state.bytes)}
-            </span>
-          </div>
-        ) : state.step === "done" ? (
-          <>
-            <ol className="steps">
-              {APPS[app].steps(xml).map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ol>
-            <div className="tracks">
-              {tracks.map(([k, what, on]) => (
-                <div className="trk" key={k}>
-                  <span>{k}</span>
-                  <span>{what}</span>
-                  <span>{on}</span>
+            {!app || state.step === "idle" || state.step === "error" ? (
+              <>
+                <div className="apps">
+                  {(Object.keys(APPS) as App[]).map((a) => (
+                    <button key={a} type="button" className="app-choice" disabled={!supported} onClick={() => void choose(a)}>
+                      <span className="app-mark" aria-hidden="true">
+                        {APPS[a].logo ? <img src={APPS[a].logo!} alt="" /> : <span>{APPS[a].name.split(" ").map((w) => w[0]).join("")}</span>}
+                      </span>
+                      <span>
+                        <b>{APPS[a].name}</b>
+                        <small>{APPS[a].maker}</small>
+                      </span>
+                    </button>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <p>A marker on every shot says why that take was picked. Everything is in “{state.folder}”.</p>
+                {state.step === "error" && <p className="bad">{state.message} Pick the app again to carry on where it stopped.</p>}
+                {!supported && <p>Exporting saves the scene into a folder you choose, which needs Chrome or Edge.</p>}
+                <p>You pick a folder; the scene goes into it as it sits in Loupe: the camera files, the proxies, and “Loupe Cut” with the timeline, a preview and the cleaned sound.</p>
+              </>
+            ) : working ? (
+              <div className="exporting">
+                <Ring value={state.bytesDone / Math.max(1, state.bytes)} size={22} stroke={3} />
+                <span>
+                  Saving {state.filesDone} of {state.files} files · {formatBytes(state.bytesDone)} of {formatBytes(state.bytes)}
+                </span>
+              </div>
+            ) : state.step === "done" ? (
+              <>
+                <ol className="steps">
+                  {APPS[app].steps(xml).map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
+                </ol>
+                <div className="tracks">
+                  {tracks.map(([k, what, on]) => (
+                    <div className="trk" key={k}>
+                      <span>{k}</span>
+                      <span>{what}</span>
+                      <span>{on}</span>
+                    </div>
+                  ))}
+                </div>
+                <p>A marker on every shot says why that take was picked. Everything is in “{state.folder}”.</p>
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
 
         <button type="button" className="btn" disabled={working} onClick={onClose}>
           {state.step === "done" ? "Done" : "Close"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Before the first export: unlocking the scene. Free (the account's first scene), one of the plan's scenes this
+ * month, or paid for on Stripe's page (Loupe never sees the card), and back here unlocked.
+ */
+function Unlock({ sceneId, billing, onUnlocked }: { sceneId: number; billing: SceneBilling; onUnlocked: () => unknown }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const next = billing.next;
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    const response = await fetch(`/api/shoots/${sceneId}/unlock`, { method: "POST" }).catch(() => null);
+    const body = (await response?.json().catch(() => null)) as { unlocked?: boolean; url?: string; error?: string } | null;
+    if (response?.ok && body?.url) {
+      window.location.assign(body.url);
+      return;
+    }
+    setBusy(false);
+    if (!response?.ok || !body?.unlocked) setError(body?.error ?? "Couldn't unlock the scene just now. Try again in a moment.");
+    else await onUnlocked();
+  };
+  return (
+    <div className="final-box unlock">
+      <div>
+        <b>{next.kind === "free" ? "Your first scene is free" : next.kind === "plan" ? `Included in ${next.plan === "pro" ? "Pro" : "Studio"}` : `Export this scene · $${next.cents / 100}`}</b>
+        <small>
+          {next.kind === "free"
+            ? "Export it now: the final file from your camera originals, and the timeline for Premiere Pro or DaVinci Resolve."
+            : next.kind === "plan"
+              ? `${next.left} of your ${next.plan === "pro" ? 10 : 60} scenes left this month. The final file, and the timeline for Premiere Pro or DaVinci Resolve.`
+              : "Once, for this scene: the final file from your camera originals, and the timeline for Premiere Pro or DaVinci Resolve. Make new versions and export again any time."}
+        </small>
+      </div>
+      <button type="button" className="btn" disabled={busy} onClick={() => void go()}>
+        {busy ? (next.kind === "pay" ? "Opening the payment page…" : "Unlocking…") : next.kind === "pay" ? `Pay $${next.cents / 100} and export` : "Export this scene"}
+      </button>
+      {next.kind === "pay" && <p className="fine">Paid securely on Stripe&apos;s page. Card, Apple Pay or Google Pay.</p>}
+      {error && <p className="bad">{error}</p>}
     </div>
   );
 }
@@ -170,9 +235,16 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
     setAsking(true);
     setError(null);
     const response = await fetch(`/api/shoots/${sceneId}/final`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind }) }).catch(() => null);
+    if (!response?.ok) {
+      setAsking(false);
+      setError(((await response?.json().catch(() => null)) as { error?: string } | null)?.error ?? "Couldn't ask for the final. Try again in a moment.");
+      return;
+    }
+    const body = (await response.json()) as { final?: FinalState; checkout?: string };
+    // 4K is paid for on Stripe's page; it starts once that's done.
+    if (body.checkout) return window.location.assign(body.checkout);
     setAsking(false);
-    if (!response?.ok) setError(((await response?.json().catch(() => null)) as { error?: string } | null)?.error ?? "Couldn't ask for the final. Try again in a moment.");
-    else setState(((await response.json()) as { final: FinalState }).final);
+    if (body.final) setState(body.final);
   };
   if (!state) return <div className="final-box"><p className="fine">Checking the final…</p></div>;
   return (
@@ -210,7 +282,7 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
           <div>
             <b>4K with Topaz</b>
             <small>
-              AI sharpening that fills 4K and keeps faces as they are. About ${(state.topazCost ?? 0).toFixed(2)} for this scene, and it takes a while (often 15–40 minutes).
+              AI sharpening that fills 4K and keeps faces as they are. ${state.topazCost ?? 0} for this scene, paid on Stripe&apos;s page. It takes a while (often 15–40 minutes).
             </small>
           </div>
           {topaz?.status === "done" && topaz.download ? (
@@ -225,7 +297,7 @@ function FinalFile({ sceneId, onAgain }: { sceneId: number; onAgain: () => void 
             </div>
           ) : (
             <button type="button" className="btn soft" disabled={asking} onClick={() => void make("topaz")}>
-              {topaz?.status === "failed" ? "Try 4K again" : `Make it 4K · about $${(state.topazCost ?? 0).toFixed(2)}`}
+              {topaz?.status === "failed" ? "Try 4K again" : `Make it 4K · $${state.topazCost ?? 0}`}
             </button>
           )}
           {topaz?.status === "failed" && <p className="bad">{topaz.error ?? "Something went wrong making the 4K version."}</p>}

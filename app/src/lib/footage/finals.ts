@@ -11,6 +11,11 @@ import type { FinalView } from "@/lib/footage/cut-types";
 /** fal's price for Topaz 4K, per second (as worker/src/assembly/topaz.ts): shown before anyone asks for it. */
 export const TOPAZ_PER_SECOND = 0.08;
 
+/** What a customer pays for Topaz 4K: twice what it costs us, rounded up to the dollar, $5 at least. In cents. */
+export function topazPrice(seconds: number): number {
+  return Math.max(5, Math.ceil(seconds * TOPAZ_PER_SECOND * 2)) * 100;
+}
+
 /** The finals of the scene's newest finished version (one of each kind: the newest). */
 export async function sceneFinals(
   db: Db,
@@ -24,7 +29,7 @@ export async function sceneFinals(
   return {
     cutId: done.id,
     canMake: Boolean(done.result.render),
-    topazCost: Math.round(done.result.seconds * TOPAZ_PER_SECOND * 100) / 100,
+    topazCost: topazPrice(done.result.seconds) / 100,
     finals: await Promise.all(
       newest.map(async (r) => ({
         id: r.id,
@@ -58,7 +63,7 @@ export async function requestFinal(db: Db, projectId: number, by: string): Promi
 }
 
 /** Asks for the 4K version (Topaz) of the newest version's final: once that's made, and only when it's below 4K. */
-export async function requestTopaz(db: Db, projectId: number, by: string): Promise<void> {
+export async function requestTopaz(db: Db, projectId: number, by: string, options: { check?: boolean } = {}): Promise<void> {
   const { done } = await sceneCuts(db, projectId);
   if (!done?.result) throw new CutError("There's no cut to make 4K yet.");
   const rows = await db.select().from(finals).where(eq(finals.cutId, done.id)).orderBy(desc(finals.id));
@@ -66,6 +71,11 @@ export async function requestTopaz(db: Db, projectId: number, by: string): Promi
   if (!original || original.status !== "done") throw new CutError("Make the final first; the 4K version is made from it.");
   if ((original.width ?? 0) >= 3456) throw new CutError("The final is already 4K.");
   const topaz = rows.find((r) => r.kind === "topaz");
-  if (topaz && topaz.status !== "failed") return;
+  if (topaz && topaz.status !== "failed") {
+    if (options.check) throw new CutError(topaz.status === "done" ? "This version is already 4K." : "The 4K version is already being made.");
+    return;
+  }
+  // Only checking it can start (before it's paid for).
+  if (options.check) return;
   await db.insert(finals).values({ cutId: done.id, projectId, kind: "topaz", requestedBy: by }).onConflictDoNothing();
 }

@@ -40,6 +40,12 @@ export const accounts = pgTable(
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     name: text("name").notNull(),
     plan: text("plan", { enum: PLANS }).notNull().default("free"),
+    // Stripe: the account's customer, and its Pro or Studio subscription (kept in step by Stripe's webhook).
+    stripeCustomerId: text("stripe_customer_id").unique(),
+    subscriptionId: text("subscription_id"),
+    subscriptionStatus: text("subscription_status"),
+    periodStart: timestamp("period_start", { withTimezone: true }),
+    periodEnd: timestamp("period_end", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [check("loupe_accounts_plan_valid", sql`${t.plan} in ('free', 'indie', 'pro', 'studio')`), appAccess()],
@@ -111,6 +117,8 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
  * One scene: the footage of one shoot, its proxies and (from stage 2) its cut. Called a project in
  * the code. The id is part of its B2 folder name (2026-09-23_the-offer_p1042).
  */
+export const UNLOCKED_HOW = ["free", "plan", "paid"] as const;
+
 export const projects = pgTable(
   "loupe_projects",
   {
@@ -126,10 +134,15 @@ export const projects = pgTable(
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
     // The LUT the scene was filmed with, for every card unless a card says otherwise.
     lutId: bigint("lut_id", { mode: "number" }).references(() => luts.id),
+    // Exporting is what's paid for: when the scene was unlocked, and how (the first free scene, a plan's monthly
+    // scenes, or paid for on its own).
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    unlockedHow: text("unlocked_how", { enum: UNLOCKED_HOW }),
     createdBy: text("created_by"),
     createdAt: createdAt(),
   },
   (t) => [
+    check("loupe_projects_unlocked_how_valid", sql`${t.unlockedHow} in ('free', 'plan', 'paid')`),
     check(
       "loupe_projects_status_valid",
       sql`${t.status} in ('scheduled', 'uploading', 'uploaded', 'delivered', 'purged')`,
@@ -443,6 +456,43 @@ export const finals = pgTable(
     index("loupe_finals_cut_idx").on(t.cutId, t.kind),
     index("loupe_finals_queue_idx").on(t.status, t.id),
     uniqueIndex("loupe_finals_one_at_a_time_idx").on(t.cutId, t.kind).where(sql`${t.status} in ('waiting', 'working')`),
+    appAccess(),
+  ],
+).enableRLS();
+
+export const PAYMENT_KINDS = ["scene", "topaz"] as const;
+export const PAYMENT_STATUSES = ["pending", "paid", "expired"] as const;
+
+/**
+ * Every one-off payment through Stripe Checkout: a scene's export, or a cut made 4K with Topaz. Made "pending" when
+ * the payment page opens; "paid" once Stripe says so (its webhook, or the person coming back from the page).
+ */
+export const payments = pgTable(
+  "loupe_payments",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    accountId: bigint("account_id", { mode: "number" })
+      .notNull()
+      .references(() => accounts.id),
+    projectId: bigint("project_id", { mode: "number" })
+      .notNull()
+      .references(() => projects.id),
+    // The version made 4K (Topaz only).
+    cutId: bigint("cut_id", { mode: "number" }).references(() => cuts.id),
+    kind: text("kind", { enum: PAYMENT_KINDS }).notNull(),
+    status: text("status", { enum: PAYMENT_STATUSES }).notNull().default("pending"),
+    amountCents: integer("amount_cents").notNull(),
+    stripeSessionId: text("stripe_session_id").notNull().unique(),
+    stripePaymentIntent: text("stripe_payment_intent"),
+    createdBy: text("created_by"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("loupe_payments_kind_valid", sql`${t.kind} in ('scene', 'topaz')`),
+    check("loupe_payments_status_valid", sql`${t.status} in ('pending', 'paid', 'expired')`),
+    index("loupe_payments_project_idx").on(t.projectId, t.kind, t.status),
+    index("loupe_payments_account_idx").on(t.accountId),
     appAccess(),
   ],
 ).enableRLS();

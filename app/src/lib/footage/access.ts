@@ -2,7 +2,7 @@
 // or a LUT asks here first, and treats "not in your account" exactly like "doesn't exist" (404),
 // so nobody can learn what other accounts have.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db/client";
 import { accounts, files, luts, projects, type Plan } from "@/lib/db/schema";
 
@@ -38,29 +38,35 @@ export async function ownedLut(db: Db, member: Owner, id: number | null) {
   return row ?? null;
 }
 
-/** What each plan allows. Free is the "first scene free" plan; paid plans aren't capped here. */
+/**
+ * What each plan can have waiting to be exported (uploaded and cut, not yet paid for). Exporting is what's paid for,
+ * so pay-as-you-go accounts (free: first scene not used yet; indie: pays per scene) keep a few scenes in progress at
+ * once, which caps the cutting and storage given away; Pro and Studio aren't capped.
+ */
 export const PLAN_LIMITS: Record<Plan, { scenes: number; bytes: number }> = {
-  free: { scenes: 1, bytes: 25e9 },
-  indie: { scenes: Infinity, bytes: Infinity },
+  free: { scenes: 3, bytes: 500e9 },
+  indie: { scenes: 3, bytes: 500e9 },
   pro: { scenes: Infinity, bytes: Infinity },
   studio: { scenes: Infinity, bytes: Infinity },
 };
+
+export const WAITING_FULL = "You have 3 scenes waiting to be exported. Export one, or choose Pro, to start another.";
 
 export async function accountPlan(db: Db, accountId: number): Promise<Plan> {
   const [row] = await db.select({ plan: accounts.plan }).from(accounts).where(eq(accounts.id, accountId));
   return row?.plan ?? "free";
 }
 
-/** How much the account has used: scenes, and bytes of footage recorded. */
+/** What the account has waiting to be exported: scenes not unlocked yet, and their footage in bytes. */
 export async function accountUsage(db: Db, accountId: number): Promise<{ scenes: number; bytes: number }> {
   const [scenes] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(projects)
-    .where(eq(projects.accountId, accountId));
+    .where(and(eq(projects.accountId, accountId), isNull(projects.unlockedAt)));
   const [bytes] = await db
     .select({ n: sql<number>`coalesce(sum(${files.sizeBytes}), 0)::float8` })
     .from(files)
     .innerJoin(projects, eq(projects.id, files.projectId))
-    .where(eq(projects.accountId, accountId));
+    .where(and(eq(projects.accountId, accountId), isNull(projects.unlockedAt)));
   return { scenes: scenes.n, bytes: bytes.n };
 }

@@ -3,7 +3,8 @@ import { getDb } from "@/lib/db/client";
 import { jsonError, route, shootIdFrom } from "@/lib/api";
 import { ownedShoot } from "@/lib/footage/access";
 import { CutError } from "@/lib/footage/cuts";
-import { requestFinal, requestTopaz, sceneFinals } from "@/lib/footage/finals";
+import { requestFinal, sceneFinals } from "@/lib/footage/finals";
+import { payForTopaz } from "@/lib/billing";
 import { signDownload } from "@/lib/storage";
 
 // The final file of the scene's newest finished version (and its Topaz 4K version): how they're going, links to save
@@ -25,9 +26,14 @@ export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/fi
   const scene = await ownedShoot(db, member, await shootIdFrom(ctx.params));
   if (!scene) return jsonError(404, "That scene doesn't exist.");
   try {
-    // { kind: "topaz" } for the 4K version; otherwise the final from the originals.
+    // { kind: "topaz" } for the 4K version (paid for on Stripe's page first); otherwise the final from the originals,
+    // once the scene is unlocked.
     const kind = ((await request.json().catch(() => ({}))) as { kind?: string }).kind;
-    await (kind === "topaz" ? requestTopaz : requestFinal)(db, scene.id, member.email);
+    if (!scene.unlockedAt) return jsonError(402, "Unlock this scene to export it.", "unlock-needed");
+    if (kind === "topaz") {
+      const paid = await payForTopaz(db, { accountId: member.accountId, projectId: scene.id, sceneName: scene.name, email: member.email, origin: new URL(request.url).origin });
+      if ("url" in paid) return Response.json({ checkout: paid.url });
+    } else await requestFinal(db, scene.id, member.email);
   } catch (error) {
     if (error instanceof CutError) return jsonError(error.status, error.message);
     throw error;

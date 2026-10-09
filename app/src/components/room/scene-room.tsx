@@ -101,6 +101,24 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
     return () => window.removeEventListener("keydown", key);
   }, [act, cut.done]);
 
+  // Back from Stripe's payment page (?paid=…): checked with Stripe, then straight on to exporting.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paid = params.get("paid");
+    if (!paid && !params.get("export")) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    const settle = async () => {
+      if (paid) {
+        const response = await fetch("/api/billing/settle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session: paid }) }).catch(() => null);
+        const body = (await response?.json().catch(() => null)) as { paid?: boolean; kind?: string } | null;
+        if (body?.paid) toast({ tone: "good", title: body.kind === "topaz" ? "Paid. Loupe is making it 4K." : "Paid. The scene is yours to export." });
+        else toast({ tone: "info", title: "The payment is still going through.", detail: "Stripe will confirm it in a moment; this page catches up by itself." });
+      }
+      setExporting(true);
+    };
+    void settle();
+  }, [toast]);
+
   const done = cut.done?.result;
   const cutting = !done && cut.latest && (cut.latest.status === "waiting" || cut.latest.status === "working");
   const phase = done ? "suite" : cutting ? "cutting" : "ingest";

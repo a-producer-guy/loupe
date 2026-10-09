@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { jsonError, readJson, route } from "@/lib/api";
-import { accountPlan, accountUsage, ownedLut, PLAN_LIMITS } from "@/lib/footage/access";
+import { accountPlan, accountUsage, ownedLut, PLAN_LIMITS, WAITING_FULL } from "@/lib/footage/access";
 import { createShoot } from "@/lib/footage/shoots";
 import { lutFileName } from "@/lib/footage/luts";
 import { listShoots, searchShoots } from "@/lib/footage/status";
@@ -45,10 +45,10 @@ export const POST = route(async (request) => {
   if (body instanceof Response) return body;
   const db = getDb();
 
-  // The free plan is one scene: the first one's free, the next needs a plan.
+  // Pay-as-you-go accounts keep a few scenes waiting to be exported at once (Pro and Studio aren't capped).
   const limit = PLAN_LIMITS[await accountPlan(db, member.accountId)].scenes;
   if ((await accountUsage(db, member.accountId)).scenes >= limit) {
-    return jsonError(402, "Your free scene is used. Pick a plan to cut another one.", "plan-needed");
+    return jsonError(402, WAITING_FULL, "plan-needed");
   }
 
   const lut = body.lutId ? await ownedLut(db, member, body.lutId) : null;

@@ -20,6 +20,7 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
       "loupe_finals",
       "loupe_luts",
       "loupe_members",
+      "loupe_payments",
       "loupe_projects",
       "loupe_proxy_jobs",
       "loupe_scripts",
@@ -59,6 +60,11 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
   await pg.query(`insert into loupe_finals (cut_id, project_id, kind) select id, 1001, 'original' from loupe_cuts limit 1`);
   await assert.rejects(pg.query(`insert into loupe_finals (cut_id, project_id, kind) select id, 1001, 'original' from loupe_cuts limit 1`), /loupe_finals_one_at_a_time_idx/);
   await assert.rejects(pg.query(`update loupe_finals set kind = 'vhs'`), /loupe_finals_kind_valid/);
+  // A payment, and a scene unlocked by it; only the values Loupe knows.
+  await pg.query(`insert into loupe_payments (account_id, project_id, kind, amount_cents, stripe_session_id) select account_id, 1001, 'scene', 3900, 'cs_test_1' from loupe_projects where id = 1001`);
+  await assert.rejects(pg.query(`insert into loupe_payments (account_id, project_id, kind, amount_cents, stripe_session_id) select account_id, 1001, 'scene', 3900, 'cs_test_1' from loupe_projects where id = 1001`), /loupe_payments_stripe_session_id_unique/);
+  await assert.rejects(pg.query(`update loupe_payments set kind = 'tip'`), /loupe_payments_kind_valid/);
+  await assert.rejects(pg.query(`update loupe_projects set unlocked_how = 'begged'`), /loupe_projects_unlocked_how_valid/);
   // One version waits per scene (and one is made), so requests queue.
   await assert.rejects(pg.query(`insert into loupe_cuts (project_id) values (1001)`), /loupe_cuts_one_waiting_idx/);
   await pg.query(`update loupe_cuts set status = 'working' where project_id = 1001`);
@@ -75,7 +81,7 @@ test("the Loupe migrations apply cleanly and lock access down", async () => {
   // Supabase's public API roles get nothing.
   for (const role of ["anon", "authenticated"]) {
     await pg.exec(`set role ${role}`);
-    for (const table of ["loupe_accounts", "loupe_members", "loupe_projects", "loupe_luts", "loupe_card_luts", "loupe_sign_in_attempts", "loupe_scripts", "loupe_cuts", "loupe_share_links", "loupe_share_notes", "loupe_finals"]) {
+    for (const table of ["loupe_accounts", "loupe_members", "loupe_projects", "loupe_luts", "loupe_card_luts", "loupe_sign_in_attempts", "loupe_scripts", "loupe_cuts", "loupe_share_links", "loupe_share_notes", "loupe_finals", "loupe_payments"]) {
       await assert.rejects(pg.query(`select * from ${table}`), /permission denied/, `${role} on ${table}`);
     }
     await pg.exec(`reset role`);

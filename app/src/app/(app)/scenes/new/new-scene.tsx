@@ -20,7 +20,7 @@ type Step = { kind: "waiting" } | { kind: "reading"; found: number } | { kind: "
 export function NewScene({ planNeeded, free }: { planNeeded: boolean; free: boolean }) {
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
-  const [step, setStep] = useState<Step>(planNeeded ? { kind: "error", message: "Your free scene is used. Pick a plan to cut another one.", planNeeded: true } : { kind: "waiting" });
+  const [step, setStep] = useState<Step>(planNeeded ? { kind: "error", message: "You have 3 scenes waiting to be exported. Export one, or choose Pro, to start another.", planNeeded: true } : { kind: "waiting" });
   const depth = useRef(0);
   const picker = useRef<HTMLInputElement>(null);
   const busy = step.kind === "reading" || step.kind === "starting";

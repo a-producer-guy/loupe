@@ -55,14 +55,14 @@ export async function registerDrop(
     const results: RegisteredGroup[] = [];
     for (const group of groups) results.push(await registerGroup(tx, project, group, uploadedBy));
 
-    // The free plan's footage limit, checked with this drop counted (a card dropped again isn't
+    // The footage limit for scenes waiting to be exported (pay-as-you-go), checked with this drop counted (a card dropped again isn't
     // counted twice). Over it, the whole drop is undone and nothing uploads.
     const limit = PLAN_LIMITS[await accountPlan(tx, project.accountId)].bytes;
     if (Number.isFinite(limit)) {
       const used = await accountUsage(tx, project.accountId);
       if (used.bytes > limit) {
         throw new DropError(
-          `That's more footage than the free plan holds (${formatBytes(limit)} in all). Pick a plan to upload this scene, or drop fewer cards.`,
+          `That's more footage than scenes waiting to be exported can hold (${formatBytes(limit)} in all). Export a scene or choose Pro to upload more, or drop fewer cards.`,
         );
       }
     }
