@@ -12,6 +12,7 @@ import { rm, writeFile } from "node:fs/promises";
 import { dataUri, type FalClient } from "../ai/fal.js";
 import { ffmpegPipe, readAudio, SR, writeAudio } from "./audio.js";
 import { hold, linesOf } from "./dialogue.js";
+import { fetchKept, fingerprint, keep, type WorkCache } from "./remember.js";
 import type { Take } from "./engine.js";
 import type { Unit } from "./text.js";
 
@@ -69,18 +70,25 @@ export function realign(moved: Float32Array, lag: number, length: number): Float
 }
 
 /** A take's cleaned dialogue (`file`, rewritten in place) with the voice isolated. Throws if fal can't. */
-export async function isolateVoice(fal: FalClient, ffmpeg: string, units: Unit[], take: Take, file: string, signal?: AbortSignal) {
+export async function isolateVoice(fal: FalClient, ffmpeg: string, units: Unit[], take: Take, file: string, signal?: AbortSignal, cache?: WorkCache): Promise<{ reused: boolean }> {
   const [original] = await readAudio(ffmpeg, file, 1, SR, signal);
   const flac = await ffmpegPipe(ffmpeg, ["-v", "error", "-nostdin", "-i", file, "-ac", "1", "-c:a", "flac", "-f", "flac", "-"], undefined, signal);
-  const result = await fal.run<{ audio?: { url: string } }>(ISOLATION_ENDPOINT, { audio_url: dataUri(flac, "audio/flac") }, { signal, timeoutMs: 10 * 60_000 });
-  if (!result.audio?.url) throw new Error("fal sent no isolated voice.");
-  const response = await fetch(result.audio.url, { signal });
-  if (!response.ok) throw new Error(`fal's isolated voice wouldn't download (${response.status}).`);
   const back = `${file}.isolated`;
-  await writeFile(back, Buffer.from(await response.arrayBuffer()));
+  // The same sound sent before (a note that left this take's dialogue as it was): its isolated voice is reused.
+  const name = `isolated-${fingerprint(ISOLATION_ENDPOINT, flac)}`;
+  const reused = await fetchKept(cache, name, back);
+  if (!reused) {
+    const result = await fal.run<{ audio?: { url: string } }>(ISOLATION_ENDPOINT, { audio_url: dataUri(flac, "audio/flac") }, { signal, timeoutMs: 10 * 60_000 });
+    if (!result.audio?.url) throw new Error("fal sent no isolated voice.");
+    const response = await fetch(result.audio.url, { signal });
+    if (!response.ok) throw new Error(`fal's isolated voice wouldn't download (${response.status}).`);
+    await writeFile(back, Buffer.from(await response.arrayBuffer()));
+    await keep(cache, name, back, response.headers.get("content-type") ?? "application/octet-stream");
+  }
   const [isolated] = await readAudio(ffmpeg, back, 1, SR, signal);
   const aligned = realign(isolated, lagOf(original, isolated), original.length);
   const { speech, own } = linesOf(units, take);
   await writeAudio(ffmpeg, file, [await hold(ffmpeg, aligned, own.length ? own : speech, signal)], SR, "pcm_s24le", signal);
   await rm(back, { force: true });
+  return { reused };
 }

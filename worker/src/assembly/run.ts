@@ -24,11 +24,12 @@ import { ESTABLISHING_SECONDS, frameOf, makeEstablishing } from "./establishing.
 import { cameraFor, FALLBACK_BRIEF, makeAmbience, makeScore, sceneBrief } from "./music.js";
 import { workOutScene, type Corrections, type LibraryScript, type SceneTake } from "./scene.js";
 import { heardInOrder, isFound, norm, tokens, type Word } from "./text.js";
-import { lookAtTakes } from "./vision.js";
+import { lookAtTakes, VISION_MODEL } from "./vision.js";
+import { fingerprint, remembered, type WorkCache } from "./remember.js";
 import { steerOf, type Direction } from "./direction.js";
 import { framesOfCut, gradeFor, type Look } from "./grade.js";
 import { isolateVoice } from "./isolate.js";
-import { judgePerformances, type SetupTakes } from "./performance.js";
+import { judgePerformances, PERFORMANCE_MODEL, type Performance, type SetupTakes } from "./performance.js";
 
 export const STEPS = ["listening", "script", "cutting", "dialogue", "music", "mixing", "packing"] as const;
 export type Step = (typeof STEPS)[number];
@@ -66,6 +67,8 @@ export type RunContext = {
   download: (key: string, file: string) => Promise<void>;
   transcripts?: TranscriptCache;
   establishing?: ShotCache;
+  /** The paid AI calls' answers, kept between versions (remember.ts). */
+  work?: WorkCache;
 };
 
 export type AssemblyResult = {
@@ -240,7 +243,12 @@ export async function makeAssembly(
     rate: 16000,
     library,
     workDir: dir,
-    look: (stills) => lookAtTakes(ctx.fal, stills, signal),
+    // What each take shows, seen once per scene (the same stills: the same answer).
+    look: async (stills) => {
+      const sent = await Promise.all(stills.map(async (s) => [s.label, await readFile(s.file)] as const));
+      const name = `seen-${fingerprint(VISION_MODEL, ...sent.flat())}.json`;
+      return remembered(ctx.work, dir, name, () => lookAtTakes(ctx.fal, stills, signal), (seen) => seen !== null);
+    },
     corrections,
     signal,
     log,
@@ -263,7 +271,14 @@ export async function makeAssembly(
     s.takes.push({ take: x.take, video: preview.get(x.take)!, from: x.sceneStart, to: x.sceneEnd });
     setups.set(key, s);
   }
-  const performance = await judgePerformances({ fal: ctx.fal, ffmpeg: tools.ffmpeg, setups: [...setups.values()], signal, log });
+  // Judged once per scene: a setup's takes, lines and moments the same, its answer is reused.
+  const previewOf = new Map(takes.map((t, i) => [labels[i], t.previewKey]));
+  const performance: Record<string, Performance> = {};
+  for (const s of setups.values()) {
+    const asked = JSON.stringify({ who: s.who, framing: s.framing, lines: s.lines, takes: s.takes.map((t) => [t.take, previewOf.get(t.take), t.from, t.to]) });
+    const judged = await remembered(ctx.work, dir, `performance-${fingerprint(PERFORMANCE_MODEL, asked)}.json`, () => judgePerformances({ fal: ctx.fal, ffmpeg: tools.ffmpeg, setups: [s], signal, log }), (p) => Object.keys(p).length > 0);
+    Object.assign(performance, judged);
+  }
   if (Object.keys(performance).length) log(`Performances: ${Object.entries(performance).map(([t, p]) => `${t} ${p.bonus >= 0 ? "+" : ""}${p.bonus}`).join(", ")}.`);
 
   // 3. The scene read once by a language model (place, ambience, score, the exterior, the lines where it peaks,
@@ -324,16 +339,17 @@ export async function makeAssembly(
   // After the room tone, which is made from the takes' own pauses and lies under the lines.
   if (direction.clean !== "standard") {
     let isolated = 0;
+    let reused = 0;
     await inBatches([...cleaned.keys()], 3, async (take) => {
       try {
-        await isolateVoice(ctx.fal, tools.ffmpeg, scene.units, T.get(take)!, cleaned.get(take)!, signal);
+        if ((await isolateVoice(ctx.fal, tools.ffmpeg, scene.units, T.get(take)!, cleaned.get(take)!, signal, ctx.work)).reused) reused += 1;
         isolated += 1;
       } catch (error) {
         if (signal.aborted) throw error;
         log(`${take}: voice not isolated, filters only (${(error as Error).message}).`);
       }
     });
-    log(`Voice isolation: ${isolated} of ${cleaned.size} takes.`);
+    log(`Voice isolation: ${isolated} of ${cleaned.size} takes${reused ? ` (${reused} kept from an earlier version)` : ""}.`);
   }
 
   // What the scene looks like inside, for the establishing shot to match (Guy, Oct 5): a frame of each actor's first

@@ -339,6 +339,17 @@ export async function runAssemblyJob(ctx: AssemblyContext, job: AssemblyJob) {
             await ctx.storage.upload(transcriptKey(t), file, "application/json", signal);
           },
         },
+        // What the paid AI calls answered (how each take is performed and what it shows, each take's voice
+        // isolated), kept beside the scene so the next version reuses them instead of paying again.
+        work: {
+          get: async (name, file) => {
+            const key = `${shoot.prefix}/Loupe work/kept/${name}`;
+            if ((await ctx.storage.size(key)) === null) return false;
+            await ctx.storage.download(key, file, signal);
+            return true;
+          },
+          put: (name, file, contentType) => ctx.storage.upload(`${shoot.prefix}/Loupe work/kept/${name}`, file, contentType, signal),
+        },
         // The establishing shot is made once per shoot and kept for "Make again".
         establishing: {
           get: async (file) => {
