@@ -62,7 +62,7 @@ const SAVED = XML_AT + 2.2;
 const LOOP = SAVED + 5;
 
 const CHAPTERS = [
-  { at: 0, h: "Drop the cards", p: "Camera cards, sound and the script, in one drag. Every file is checked as it lands." },
+  { at: 0, h: "Drop the footage", p: "Camera cards, sound and the script, in one drag. Every file is checked as it lands." },
   { at: UP + 1.7, h: "Proxies, made for you", p: "Made while it uploads. No Media Encoder, no presets, nothing to babysit." },
   { at: CUT_AT, h: "Loupe cuts the scene", p: "Every take watched and lined up with the script. The best read of every line, picked." },
   { at: DONE_AT, h: "Watch your first cut", p: "Every shot has a reason. The script follows the picture." },
