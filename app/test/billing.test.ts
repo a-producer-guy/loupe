@@ -191,19 +191,19 @@ describe("Topaz 4K", () => {
 describe("always in the black", () => {
   test("half of every sale, after Stripe's fee, goes into the free-cutting fund, once", async () => {
     assert.equal(await fundBalance(db), 30000, "the launch budget");
-    assert.equal(fundShare(3900), 1878);
+    assert.equal(fundShare(3900), 1810);
     const { scene } = await sceneWithCut("Sold");
     const page = await unlock(scene.id);
     assert.ok(!page.unlocked);
     pay(sessionOf(page.url));
     await settleSession(db, sessionOf(page.url));
     await settleSession(db, sessionOf(page.url));
-    assert.equal(await fundBalance(db), 30000 + 1878);
+    assert.equal(await fundBalance(db), 30000 + 1810);
     // A plan's month paid: half of it too, once.
     await db.update(accounts).set({ stripeCustomerId: "cus_x" }).where(eq(accounts.id, ACCT));
     await handleEvent(db, "evt_invoice");
     await handleEvent(db, "evt_invoice");
-    assert.equal(await fundBalance(db), 30000 + 1878 + fundShare(19900));
+    assert.equal(await fundBalance(db), 30000 + 1810 + fundShare(19900));
   });
 
   test("a free cut waits when the fund can't cover the most it can cost; paid scenes never wait", async () => {

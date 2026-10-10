@@ -12,9 +12,9 @@ export const FREE_CUT_BASE_CENTS = 50;
 export const FREE_CUT_CENTS_PER_MINUTE = 7;
 export const FREE_VERSION_CENTS = 50;
 
-/** Half of what a payment brings in after Stripe's fee (2.9% + 30¢), in cents. */
+/** Half of what a payment brings in after Stripe's fees (2.9% + 30¢, and 3.5% for Managed Payments), in cents. */
 export function fundShare(cents: number): number {
-  return Math.max(0, Math.floor((cents * 0.971 - 30) / 2));
+  return Math.max(0, Math.floor((cents * 0.936 - 30) / 2));
 }
 
 /** Puts a sale's half in the fund, once per `ref`. */

@@ -4,7 +4,7 @@ import { jsonError, route, shootIdFrom } from "@/lib/api";
 import { ownedShoot } from "@/lib/footage/access";
 import { CutError } from "@/lib/footage/cuts";
 import { requestFinal, sceneFinals } from "@/lib/footage/finals";
-import { payForTopaz } from "@/lib/billing";
+import { payForTopaz, stripeRefused } from "@/lib/billing";
 import { signDownload } from "@/lib/storage";
 
 // The final file of the scene's newest finished version (and its Topaz 4K version): how they're going, links to save
@@ -36,6 +36,8 @@ export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/fi
     } else await requestFinal(db, scene.id, member.email);
   } catch (error) {
     if (error instanceof CutError) return jsonError(error.status, error.message);
+    const refused = stripeRefused(error);
+    if (refused) return refused;
     throw error;
   }
   return Response.json({ final: await sceneFinals(db, scene.id, signDownload) });

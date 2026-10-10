@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { jsonError, route, shootIdFrom } from "@/lib/api";
 import { ownedShoot } from "@/lib/footage/access";
 import { CutError } from "@/lib/footage/cuts";
-import { sceneBilling, unlockScene } from "@/lib/billing";
+import { sceneBilling, unlockScene, stripeRefused } from "@/lib/billing";
 
 // Unlocking a scene for export: what it takes (GET), and doing it (POST): free, one of the plan's scenes, or the
 // address of Stripe's page to pay for it.
@@ -27,6 +27,8 @@ export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/un
     return Response.json(await unlockScene(db, { accountId: member.accountId, projectId: scene.id, sceneName: scene.name, email: member.email, origin: new URL(request.url).origin }));
   } catch (error) {
     if (error instanceof CutError) return jsonError(error.status, error.message);
+    const refused = stripeRefused(error);
+    if (refused) return refused;
     throw error;
   }
 });

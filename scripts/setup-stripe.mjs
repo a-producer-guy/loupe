@@ -20,6 +20,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP = path.join(ROOT, "app");
 const Stripe = createRequire(path.join(APP, "package.json"))("stripe");
 const SITE = "https://editloupe.com";
+// Stripe is the seller (Managed Payments): every product needs its tax category. Must match app/src/lib/billing.ts.
+const TAX_CODE = "txcd_10105002"; // AI as a service, cloud-based, business use
 
 const PLANS = [
   { lookup: "loupe_pro_monthly", name: "Loupe Pro", cents: 19900, about: "10 scenes a month, then $39 each" },
@@ -70,10 +72,11 @@ async function main() {
     const [existing] = (await stripe.prices.list({ lookup_keys: [plan.lookup], active: true, limit: 1 })).data;
     if (existing) {
       prices[plan.lookup] = existing;
+      await stripe.products.update(typeof existing.product === "string" ? existing.product : existing.product.id, { tax_code: TAX_CODE });
       console.log(`✓ ${plan.name} is there ($${existing.unit_amount / 100} a month).`);
       continue;
     }
-    const product = await stripe.products.create({ name: plan.name, description: plan.about, metadata: { loupe: plan.lookup } });
+    const product = await stripe.products.create({ name: plan.name, description: plan.about, tax_code: TAX_CODE, metadata: { loupe: plan.lookup } });
     prices[plan.lookup] = await stripe.prices.create({
       product: product.id,
       currency: "usd",

@@ -18,6 +18,13 @@ import { requestTopaz, topazPrice } from "@/lib/footage/finals";
 
 export class BillingError extends CutError {}
 
+/** Stripe turned a request down: the reason goes to the log, the person gets plain words. */
+export function stripeRefused(error: unknown): Response | null {
+  if (!(error instanceof Stripe.errors.StripeError)) return null;
+  console.error(`Stripe refused: ${error.type} ${error.code ?? ""} ${error.message}`);
+  return Response.json({ error: "Stripe couldn't open the payment page just now. Try again in a moment; if it keeps happening, tell us at hi@editloupe.com." }, { status: 502 });
+}
+
 let client: Stripe | null = null;
 let portalConfig: Promise<string | null> | null = null;
 
@@ -35,6 +42,12 @@ export function stripe(): Stripe {
   client = new Stripe(key, { appInfo: { name: "Loupe", url: "https://editloupe.com" } });
   return client;
 }
+
+/**
+ * Stripe is the seller (Managed Payments, Guy Oct 10: it handles sales tax and VAT in 80+ countries, for 3.5% a
+ * sale), which needs every product's tax category: AI as a service, cloud-based, for business use.
+ */
+export const TAX_CODE = "txcd_10105002";
 
 /** Scenes a month that come with a plan, and what each one after that costs (in cents). */
 export const PLAN_SCENES: Record<"pro" | "studio", number> = { pro: 10, studio: 60 };
@@ -144,7 +157,7 @@ export async function unlockScene(db: Db, input: { accountId: number; projectId:
         price_data: {
           currency: "usd",
           unit_amount: cents,
-          product_data: { name: `Export: ${input.sceneName}`, description: "The final file, and the timeline for Premiere Pro and DaVinci Resolve." },
+          product_data: { name: `Export: ${input.sceneName}`, description: "The final file, and the timeline for Premiere Pro and DaVinci Resolve.", tax_code: TAX_CODE },
         },
       },
     ],
@@ -180,7 +193,7 @@ export async function payForTopaz(db: Db, input: { accountId: number; projectId:
     line_items: [
       {
         quantity: 1,
-        price_data: { currency: "usd", unit_amount: cents, product_data: { name: `4K with Topaz: ${input.sceneName}`, description: "The final file, made 4K with Topaz." } },
+        price_data: { currency: "usd", unit_amount: cents, product_data: { name: `4K with Topaz: ${input.sceneName}`, description: "The final file, made 4K with Topaz.", tax_code: TAX_CODE } },
       },
     ],
     metadata: { kind: "topaz", accountId: String(input.accountId), projectId: String(input.projectId), cutId: String(done.id) },
