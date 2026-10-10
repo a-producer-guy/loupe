@@ -49,6 +49,10 @@ Next.js 16 (App Router, `src/proxy.ts`), React 19, Tailwind 4 (tokens in `global
 - Roles: owner, editor, director, viewer. `canWrite` is owner or editor.
 - Show Guy every migration before running it (`npm run db:migrate` prints it and waits for "yes").
 
+## Footage bridge
+
+Reelarc's shoots live in Footage (footage.reelarc.com, repo `a-producer-guy/reelarc-footage`), not Dropbox, once they're shot. `node scripts/footage.mjs find <words>` / `date <yyyy-mm-dd>` / `shoot <id>` / `get <id> <key> <file>` finds a shoot and downloads its cards, proxies, previews, versions, first assembly and script through Footage's read-only bridge (`/api/bridge`). It needs `BRIDGE_SECRET` (Footage's Vercel settings, and this environment's settings); never print it or put it in chat. Shoot names carry client names: keep those out of commits, the site and chat.
+
 ## Security rules
 
 - Secrets live only in `app/.env.local`, `worker/.env` and the Vercel/Railway settings. Never commit them.
