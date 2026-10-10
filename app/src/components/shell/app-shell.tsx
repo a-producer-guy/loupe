@@ -1,6 +1,6 @@
 "use client";
 
-import { CardSim, Check, ChevronUp, Clapperboard, CloudUpload, CreditCard, LogOut, Settings, TriangleAlert, Users, WifiOff, X } from "lucide-react";
+import { CardSim, Check, ChevronUp, Clapperboard, CloudUpload, CreditCard, HardDriveDownload, LogOut, Settings, TriangleAlert, Users, WifiOff, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -11,14 +11,18 @@ import { DropGuard } from "@/components/upload/drop-guard";
 import { formatBytes, formatTimeLeft } from "@/lib/footage/names";
 import { useUploadsOverview } from "@/lib/hooks";
 import { getUploadManager, type ShootProgress, type UploadsOverview } from "@/lib/upload/manager";
+import { useDownloadsOverview } from "@/components/shoots/use-download";
+import { getDownloadManager, type DownloadsOverview } from "@/lib/download/manager";
 
 /**
- * Loupe's frame: a slim rail (Your scenes, Uploads, Plan, Team, Settings), an Uploads panel that
- * slides out from it, and a small tray that keeps an eye on uploads from any page.
+ * Loupe's frame: a slim rail (Your scenes, Uploads, Downloads, Plan, Team, Settings), the Uploads and Downloads
+ * panels that slide out from it, and a small tray that keeps an eye on both from any page.
  */
 export function AppShell({ email, children }: { email: string; children: ReactNode }) {
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [panel, setPanel] = useState<"uploads" | "downloads" | null>(null);
+  const panelOpen = panel === "uploads";
   const overview = useUploadsOverview();
+  const downloads = useDownloadsOverview();
   const toast = useToast();
 
   useEffect(
@@ -37,12 +41,23 @@ export function AppShell({ email, children }: { email: string; children: ReactNo
   return (
     <div className="flex h-dvh overflow-hidden">
       <DropGuard />
-      <Rail email={email} overview={overview} uploadsOpen={panelOpen} onToggleUploads={() => setPanelOpen((open) => !open)} />
+      <Rail
+        email={email}
+        overview={overview}
+        downloads={downloads}
+        panel={panel}
+        onToggle={(which) => setPanel((open) => (open === which ? null : which))}
+      />
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {panelOpen && <UploadsPanel overview={overview} onClose={() => setPanelOpen(false)} />}
+        {panel === "uploads" && <UploadsPanel overview={overview} onClose={() => setPanel(null)} />}
+        {panel === "downloads" && <DownloadsPanel downloads={downloads} onClose={() => setPanel(null)} />}
         {children}
       </div>
-      {!panelOpen && <UploadTray overview={overview} onOpen={() => setPanelOpen(true)} />}
+      {!panel && (overview.active || overview.finishedAt || !downloads.active ? (
+        <UploadTray overview={overview} onOpen={() => setPanel("uploads")} />
+      ) : (
+        <DownloadTray downloads={downloads} onOpen={() => setPanel("downloads")} />
+      ))}
     </div>
   );
 }
@@ -50,14 +65,17 @@ export function AppShell({ email, children }: { email: string; children: ReactNo
 function Rail({
   email,
   overview,
-  uploadsOpen,
-  onToggleUploads,
+  downloads,
+  panel,
+  onToggle,
 }: {
   email: string;
   overview: UploadsOverview;
-  uploadsOpen: boolean;
-  onToggleUploads: () => void;
+  downloads: DownloadsOverview;
+  panel: "uploads" | "downloads" | null;
+  onToggle: (which: "uploads" | "downloads") => void;
 }) {
+  const uploadsOpen = panel === "uploads";
   const pathname = usePathname();
   const progress = overview.bytes ? overview.bytesDone / overview.bytes : 0;
   const item = (active: boolean) =>
@@ -75,7 +93,7 @@ function Rail({
       </Link>
       <button
         type="button"
-        onClick={onToggleUploads}
+        onClick={() => onToggle("uploads")}
         aria-label="Uploads"
         title="Uploads"
         aria-expanded={uploadsOpen}
@@ -87,6 +105,22 @@ function Rail({
           </Ring>
         ) : (
           <CloudUpload className="size-[18px]" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => onToggle("downloads")}
+        aria-label="Downloads"
+        title="Downloads"
+        aria-expanded={panel === "downloads"}
+        className={item(panel === "downloads")}
+      >
+        {downloads.active ? (
+          <Ring value={downloads.bytes ? downloads.bytesDone / downloads.bytes : 0} size={34} stroke={2.5} busy={downloads.bytes === 0}>
+            <HardDriveDownload className="size-4 text-tally" />
+          </Ring>
+        ) : (
+          <HardDriveDownload className="size-[18px]" />
         )}
       </button>
       <div className="flex-1" />
@@ -286,3 +320,94 @@ function UploadTray({ overview, onOpen }: { overview: UploadsOverview; onOpen: (
     </button>
   );
 }
+
+/** Scenes being saved to this computer (lib/download/manager.ts), and the ones finished in this tab. */
+function DownloadsPanel({ downloads, onClose }: { downloads: DownloadsOverview; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const finished = downloads.jobs.some((j) => j.state.step !== "working");
+
+  return (
+    <aside className="absolute inset-y-0 left-0 z-40 flex w-[340px] max-w-[calc(100vw-60px)] animate-rise flex-col border-r border-line-strong bg-panel shadow-lift">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
+        <h2 className="text-[15px] font-semibold">Downloads</h2>
+        <div className="flex items-center gap-1">
+          {finished && (
+            <button type="button" onClick={() => getDownloadManager().clear()} className="rounded-lg px-2 py-1 text-[12.5px] text-muted hover:bg-surface-2 hover:text-text">
+              Clear
+            </button>
+          )}
+          <button type="button" onClick={onClose} aria-label="Close downloads" className="grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-text">
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {downloads.jobs.length === 0 ? (
+          <div className="grid h-full place-items-center px-8 text-center">
+            <div>
+              <HardDriveDownload className="mx-auto size-12 text-surface-3" strokeWidth={1.5} />
+              <p className="mt-4 font-medium">No downloads yet</p>
+              <p className="mt-1 text-[13px] text-muted">A scene you export to a folder shows up here while it saves.</p>
+            </div>
+          </div>
+        ) : (
+          downloads.jobs.map((job) => {
+            const s = job.state;
+            return (
+              <section key={job.sceneId} className="border-b border-line px-4 py-4">
+                <Link href={`/scenes/${job.sceneId}`} className="flex items-baseline justify-between gap-3 hover:text-tally">
+                  <span className="truncate font-medium">{job.name || "Scene"}</span>
+                  <span className="shrink-0 text-[12px] text-muted">{s.step === "working" && s.bytes ? `${Math.round((s.bytesDone / s.bytes) * 100)}%` : ""}</span>
+                </Link>
+                {s.step === "working" ? (
+                  <>
+                    <p className="mt-2 text-[12.5px] text-muted">
+                      {s.files ? `${s.filesDone} of ${s.files} files · ${formatBytes(s.bytesDone)} of ${formatBytes(s.bytes)}` : "Getting the list of files…"}
+                    </p>
+                    <Bar value={s.bytes ? s.bytesDone / s.bytes : 0} className="mt-2" />
+                  </>
+                ) : s.step === "done" ? (
+                  <p className="mt-2 flex items-center gap-2 text-[12.5px] text-good">
+                    <Check className="size-3.5" /> Saved in “{job.folder}”, {formatBytes(s.bytes)}
+                  </p>
+                ) : s.step === "error" ? (
+                  <p className="mt-2 text-[12.5px] text-bad">{s.message} Export again into the same folder to carry on where it stopped.</p>
+                ) : null}
+              </section>
+            );
+          })
+        )}
+      </div>
+      {downloads.active && <p className="shrink-0 border-t border-line px-4 py-3 text-[12.5px] text-muted">Keep this tab open until it says Saved.</p>}
+    </aside>
+  );
+}
+
+function DownloadTray({ downloads, onOpen }: { downloads: DownloadsOverview; onOpen: () => void }) {
+  if (!downloads.active) return null;
+  const pct = downloads.bytes ? downloads.bytesDone / downloads.bytes : 0;
+  const names = downloads.jobs.filter((j) => j.state.step === "working").map((j) => j.name);
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="fixed bottom-5 right-5 z-40 flex animate-rise items-center gap-3 rounded-2xl border border-line-strong bg-surface-2/95 py-3 pl-3 pr-4 text-left shadow-lift backdrop-blur-md hover:border-pink/40"
+    >
+      <Ring value={pct} size={40} stroke={3.5} busy={downloads.bytes === 0}>
+        <span className="text-[10.5px] font-semibold">{downloads.bytes ? Math.round(pct * 100) : ""}</span>
+      </Ring>
+      <div className="min-w-0">
+        <p className="max-w-[240px] truncate text-[13.5px] font-medium">Downloading {names.length === 1 ? names[0] : `${names.length} scenes`}</p>
+        <p className="text-[12px] text-muted">
+          {formatBytes(downloads.bytesDone)} of {formatBytes(downloads.bytes)}
+        </p>
+      </div>
+      <ChevronUp className="size-4 text-faint" />
+    </button>
+  );
+}
+

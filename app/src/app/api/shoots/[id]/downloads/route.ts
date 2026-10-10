@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiMember } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
-import { files, proxyJobs } from "@/lib/db/schema";
+import { files, finals, proxyJobs } from "@/lib/db/schema";
 import { ownedShoot } from "@/lib/footage/access";
 import { jsonError, readJson, route, shootIdFrom } from "@/lib/api";
 import { packageFiles, sceneCuts } from "@/lib/footage/cuts";
@@ -39,6 +39,15 @@ export const GET = route(async (_request, ctx: RouteContext<"/api/shoots/[id]/do
   // Loupe's cut is what's paid for: only once the scene is unlocked (the footage itself is always theirs).
   const cut = done?.result && shoot.unlockedAt && exportable(done.result) ? packageFiles(shoot.storagePrefix, done.result) : [];
 
+  // The final files of the newest version (and its 4K one), in "Final/", once the scene is unlocked.
+  const made =
+    done?.result && shoot.unlockedAt
+      ? await db
+          .select({ id: finals.id, kind: finals.kind, size: finals.sizeBytes })
+          .from(finals)
+          .where(and(eq(finals.cutId, done.id), eq(finals.status, "done")))
+      : [];
+  const title = (done?.result?.title ?? shoot.name).replace(/[/\\:*?"<>|]/g, "-");
   const inFolder = (key: string) => key.slice(shoot.storagePrefix.length + 1);
   return Response.json({
     folder: shoot.storagePrefix,
@@ -48,11 +57,12 @@ export const GET = route(async (_request, ctx: RouteContext<"/api/shoots/[id]/do
       ...looks.map((l) => ({ kind: "lut" as const, id: l.id, path: `LUTs/${lutFileName(l)}`, size: l.sizeBytes })),
       // The cut's files, numbered in the order they're listed (a newer version renumbers them; the download asks afresh).
       ...cut.map((f, i) => ({ kind: "cut" as const, id: i + 1, path: f.path, size: f.size })),
+      ...made.map((f) => ({ kind: "final" as const, id: f.id, path: `Final/${title} - ${f.kind === "topaz" ? "4K" : "final"}.mp4`, size: f.size ?? 0 })),
     ],
   });
 });
 
-const LinkRequest = z.object({ kind: z.enum(["raw", "proxy", "lut", "cut"]), id: z.number().int().positive() });
+const LinkRequest = z.object({ kind: z.enum(["raw", "proxy", "lut", "cut", "final"]), id: z.number().int().positive() });
 
 /** A fresh download link for one file, made at the moment it's needed. */
 export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/downloads">) => {
@@ -76,6 +86,16 @@ export const POST = route(async (request, ctx: RouteContext<"/api/shoots/[id]/do
     const file = scene && done?.result ? packageFiles(scene.storagePrefix, done.result)[body.id - 1] : undefined;
     if (!file) return jsonError(404, "That file isn't available.");
     return Response.json({ url: await signDownload(file.key) });
+  }
+  if (body.kind === "final") {
+    const [scene] = [await ownedShoot(db, member, id)];
+    if (!scene?.unlockedAt) return jsonError(402, "Unlock this scene to export it.", "unlock-needed");
+    const [made] = await db
+      .select({ key: finals.storageKey })
+      .from(finals)
+      .where(and(eq(finals.id, body.id), eq(finals.projectId, id), eq(finals.status, "done")));
+    if (!made?.key) return jsonError(404, "That file isn't available.");
+    return Response.json({ url: await signDownload(made.key) });
   }
   const [row] =
     body.kind === "raw"

@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { DownloadState } from "@/components/shoots/use-download";
+import type { DownloadKind, DownloadState } from "@/components/shoots/use-download";
 import { Ring } from "@/components/ui/progress";
 import { exportable, FINISHING_SOUND, type CutResult, type FinalView } from "@/lib/footage/cut-types";
 import type { SceneBilling } from "@/lib/billing";
 import { formatBytes } from "@/lib/footage/names";
 
-// Export (the mockup's "Premiere timeline" sheet): pick the editing app, the scene downloads laid out as it is in
-// Loupe (camera files, proxies, and the "Loupe Cut" folder with the timeline, preview and cleaned sound), then the
-// steps for that app. The timeline is Final Cut Pro 7 XML, which Premiere Pro and DaVinci Resolve both import.
+// Export (the mockup's "Premiere timeline" sheet): the final file, then a download of the parts you want, ticked (Guy,
+// Oct 10: "all neat for them"), into one folder laid out as in Loupe (Final/, "Loupe Cut/" with the timeline, preview
+// and cleaned sound, LUTs/, Proxies/ and, only if you need them, the camera originals in Raw/), then the steps for
+// Premiere or Resolve. The timeline is Final Cut Pro 7 XML, which both import. The download carries on if this
+// closes (the Downloads panel shows it).
 //
 // The apps' own logos are their makers' trademarks: they go in public/brands/ only as the official files, used as
 // each brand's rules allow ("works with"). Until then each choice is its name.
@@ -57,10 +59,10 @@ export function ExportSheet({
   result: CutResult;
   state: DownloadState;
   supported: boolean;
-  onStart: () => Promise<DownloadState | null>;
+  onStart: (kinds: ReadonlySet<DownloadKind>) => Promise<DownloadState | null>;
   onClose: () => void;
 }) {
-  const [app, setApp] = useState<App | null>(null);
+  const [app, setApp] = useState<App>("premiere");
   const [asked, setBilling] = useState<SceneBilling | null>(null);
   // The demo has nothing to unlock.
   const billing: SceneBilling | null = final ? { unlocked: true, next: { kind: "pay", cents: 0 } } : asked;
@@ -80,10 +82,6 @@ export function ExportSheet({
   }, [loadBilling, final]);
   const xml = `${result.title} - Loupe cut.xml`;
   const working = state.step === "working";
-  const choose = async (a: App) => {
-    setApp(a);
-    await onStart();
-  };
   const tracks: [string, string, string][] = [
     ["V1", "The cut", "on"],
     ["V2–V3", "Alternate takes, stacked above each shot", "off"],
@@ -97,9 +95,9 @@ export function ExportSheet({
   ];
 
   return (
-    <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="exportH" onClick={(e) => e.target === e.currentTarget && !working && onClose()}>
+    <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="exportH" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet-card">
-        <h2 id="exportH">{state.step === "done" && app ? `Ready for ${APPS[app].name}` : "Export"}</h2>
+        <h2 id="exportH">Export</h2>
         {!billing ? (
           <p className="fine">One moment…</p>
         ) : !billing.unlocked ? (
@@ -116,37 +114,17 @@ export function ExportSheet({
         ) : (
           <>
             <FinalFile sceneId={sceneId} onAgain={onAgain} given={final} />
-            <h3 className="sheet-k">Or keep editing</h3>
-            <div className="file">{xml}</div>
-
-            {!app || state.step === "idle" || state.step === "error" ? (
+            <h3 className="sheet-k">Download</h3>
+            <Download sceneId={sceneId} state={state} supported={supported} onStart={onStart} demo={Boolean(final)} />
+            {state.step === "done" && (
               <>
-                <div className="apps">
+                <div className="segctl" role="group" aria-label="Opening it in">
                   {(Object.keys(APPS) as App[]).map((a) => (
-                    <button key={a} type="button" className="app-choice" disabled={!supported} onClick={() => void choose(a)}>
-                      <span className="app-mark" aria-hidden="true">
-                        {APPS[a].logo ? <img src={APPS[a].logo!} alt="" /> : <span>{APPS[a].name.split(" ").map((w) => w[0]).join("")}</span>}
-                      </span>
-                      <span>
-                        <b>{APPS[a].name}</b>
-                        <small>{APPS[a].maker}</small>
-                      </span>
+                    <button key={a} type="button" aria-pressed={app === a} onClick={() => setApp(a)}>
+                      {APPS[a].name}
                     </button>
                   ))}
                 </div>
-                {state.step === "error" && <p className="bad">{state.message} Pick the app again to carry on where it stopped.</p>}
-                {!supported && <p>Exporting saves the scene into a folder you choose, which needs Chrome or Edge.</p>}
-                <p>You pick a folder; the scene goes into it as it sits in Loupe: the camera files, the proxies, and “Loupe Cut” with the timeline, a preview and the cleaned sound.</p>
-              </>
-            ) : working ? (
-              <div className="exporting">
-                <Ring value={state.bytesDone / Math.max(1, state.bytes)} size={22} stroke={3} />
-                <span>
-                  Saving {state.filesDone} of {state.files} files · {formatBytes(state.bytesDone)} of {formatBytes(state.bytes)}
-                </span>
-              </div>
-            ) : state.step === "done" ? (
-              <>
                 <ol className="steps">
                   {APPS[app].steps(xml).map((s) => (
                     <li key={s}>{s}</li>
@@ -161,13 +139,13 @@ export function ExportSheet({
                     </div>
                   ))}
                 </div>
-                <p>A marker on every shot says why that take was picked. Everything is in “{state.folder}”.</p>
+                <p>A marker on every shot says why that take was picked.</p>
               </>
-            ) : null}
+            )}
           </>
         )}
 
-        <button type="button" className="btn" disabled={working} onClick={onClose}>
+        <button type="button" className="btn soft" onClick={onClose}>
           {state.step === "done" ? "Done" : "Close"}
         </button>
       </div>
@@ -325,3 +303,94 @@ function FinalFile({ sceneId, onAgain, given }: { sceneId: number; onAgain: () =
 }
 
 const cap = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
+
+type Part = "final" | "timeline" | "proxies" | "raw";
+const PARTS: { part: Part; kinds: DownloadKind[]; name: string; what: string }[] = [
+  { part: "final", kinds: ["final"], name: "The final file", what: "The MP4 to deliver, and its 4K version if you made one." },
+  { part: "timeline", kinds: ["cut", "lut"], name: "Timeline for Premiere and Resolve", what: "The XML, a preview, the cleaned sound and the LUTs." },
+  { part: "proxies", kinds: ["proxy"], name: "Proxies", what: "Small copies that play smoothly while you edit." },
+  { part: "raw", kinds: ["raw"], name: "Camera originals", what: "Only if you don't have the cards any more. The timeline finds your own copies when you point it at them." },
+];
+
+/**
+ * What to download, ticked (the camera originals only if you need them), with each part's size; then one folder.
+ * The download is the app's (lib/download/manager.ts): closing this leaves it going.
+ */
+function Download({
+  sceneId,
+  state,
+  supported,
+  onStart,
+  demo,
+}: {
+  sceneId: number;
+  state: DownloadState;
+  supported: boolean;
+  onStart: (kinds: ReadonlySet<DownloadKind>) => Promise<DownloadState | null>;
+  demo: boolean;
+}) {
+  const [sizes, setSizes] = useState<Record<Part, number> | null>(null);
+  const [picked, setPicked] = useState<Set<Part>>(() => new Set(["final", "timeline", "proxies"]));
+  const working = state.step === "working";
+  const load = useCallback(async () => {
+    const response = await fetch(`/api/shoots/${sceneId}/downloads`, { cache: "no-store" }).catch(() => null);
+    if (!response?.ok) return;
+    const { files } = (await response.json()) as { files: { kind: DownloadKind; size: number }[] };
+    const of = (kinds: DownloadKind[]) => files.filter((f) => kinds.includes(f.kind)).reduce((n, f) => n + f.size, 0);
+    setSizes(Object.fromEntries(PARTS.map((p) => [p.part, of(p.kinds)])) as Record<Part, number>);
+  }, [sceneId]);
+  useEffect(() => {
+    // An effect that only subscribes to the server: what there is to download (the final appears once it's made).
+    if (demo) return;
+    let alive = true;
+    const read = () => alive && void load();
+    read();
+    const id = setInterval(read, 10_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [load, demo]);
+  const available = (p: Part) => (sizes ? sizes[p] > 0 : true);
+  const chosen = PARTS.filter((p) => picked.has(p.part) && available(p.part));
+  const total = sizes ? chosen.reduce((n, p) => n + sizes[p.part], 0) : null;
+  const toggle = (p: Part) =>
+    setPicked((now) => {
+      const next = new Set(now);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  return (
+    <div className="parts">
+      {PARTS.map((p) => (
+        <label key={p.part} className={`part${available(p.part) ? "" : " off"}`}>
+          <input type="checkbox" checked={picked.has(p.part) && available(p.part)} disabled={!available(p.part) || working} onChange={() => toggle(p.part)} />
+          <span>
+            <b>{p.name}</b>
+            <small>{available(p.part) ? p.what : p.part === "final" ? "Make the final above first." : "Not here: drop the cards on the scene to bring them back."}</small>
+          </span>
+          <span className="size">{sizes && available(p.part) ? formatBytes(sizes[p.part]) : ""}</span>
+        </label>
+      ))}
+      {working ? (
+        <div className="exporting">
+          <Ring value={state.bytesDone / Math.max(1, state.bytes)} size={22} stroke={3} />
+          <span>
+            Saving {state.filesDone} of {state.files} files · {formatBytes(state.bytesDone)} of {formatBytes(state.bytes)}
+          </span>
+        </div>
+      ) : (
+        <button type="button" className="btn" disabled={!supported || chosen.length === 0 || demo} onClick={() => void onStart(new Set(chosen.flatMap((p) => p.kinds)))}>
+          {state.step === "done" ? "Download again" : "Download to a folder"}
+          {total ? ` · ${formatBytes(total)}` : ""}
+        </button>
+      )}
+      {working && <p className="fine">You can close this: it keeps going, and Downloads in the sidebar shows it. Keep this tab open.</p>}
+      {state.step === "done" && <p className="fine">Saved in “{state.folder}”. Downloading again skips what&apos;s already there.</p>}
+      {state.step === "error" && <p className="bad">{state.message} Download again into the same folder to carry on where it stopped.</p>}
+      {!supported && <p className="fine">Saving to a folder needs Chrome or Edge. The final file can still be downloaded above.</p>}
+    </div>
+  );
+}
+

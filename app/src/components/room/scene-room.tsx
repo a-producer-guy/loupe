@@ -29,7 +29,7 @@ export function SceneRoom({ initial, initialCut }: { initial: ShootDetail; initi
   const progress = useShootProgress(shoot.id);
   useRefreshWhenSettled(progress.active, progress.filesDone, refresh);
   const toast = useToast();
-  const download = useShootDownload(shoot.id);
+  const download = useShootDownload(shoot.id, shoot.name);
   const [dept, setDept] = useState<Dept>("edit");
   const [scope, setScope] = useState<Scope>({ kind: "scene" });
   const [busy, setBusy] = useState(false);
