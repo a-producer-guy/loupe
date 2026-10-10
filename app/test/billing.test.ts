@@ -146,6 +146,14 @@ describe("plans", () => {
     assert.equal(after.plan, "indie", "back to paying per scene");
   });
 
+  test("a subscription that isn't a plan (Keep footage) never changes the plan", async () => {
+    await db.update(accounts).set({ stripeCustomerId: "cus_x" }).where(eq(accounts.id, ACCT));
+    await syncSubscription(db, subscription("active"));
+    await syncSubscription(db, { ...(subscription("active", "loupe_keep_footage") as object), id: "sub_2" } as never);
+    const [account] = await db.select().from(accounts).where(eq(accounts.id, ACCT));
+    assert.deepEqual([account.plan, account.subscriptionId], ["pro", "sub_1"]);
+  });
+
   test("Studio's extra scenes are $25", async () => {
     await db.update(accounts).set({ stripeCustomerId: "cus_x" }).where(eq(accounts.id, ACCT));
     await syncSubscription(db, subscription("active", "loupe_studio_monthly"));

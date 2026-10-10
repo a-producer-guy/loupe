@@ -266,10 +266,12 @@ export async function syncSubscription(db: Db, subscription: Stripe.Subscription
   const customer = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const [account] = await db.select().from(accounts).where(eq(accounts.stripeCustomerId, customer));
   if (!account) return console.error(`Stripe subscription ${subscription.id} for an unknown customer ${customer}`);
+  // Only Pro and Studio subscriptions are plans (Keep footage is billed on its own subscription).
+  const item = subscription.items.data.find((i) => i.price.lookup_key === PLAN_LOOKUP.pro || i.price.lookup_key === PLAN_LOOKUP.studio);
+  if (!item) return;
   // A newer subscription replaced this one: the old one's news doesn't change the plan.
   if (account.subscriptionId && account.subscriptionId !== subscription.id && account.subscriptionStatus && LIVE.has(account.subscriptionStatus) && !LIVE.has(subscription.status)) return;
-  const item = subscription.items.data[0];
-  const key = item?.price.lookup_key;
+  const key = item.price.lookup_key;
   const which: "pro" | "studio" | null = key === PLAN_LOOKUP.studio ? "studio" : key === PLAN_LOOKUP.pro ? "pro" : null;
   const live = LIVE.has(subscription.status) && which !== null;
   // Off a plan, back to paying per scene.
