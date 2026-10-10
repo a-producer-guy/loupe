@@ -14,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { askFromClipboard, writeEnv } from "./prompt.mjs";
+import { ask, askFromClipboard, writeEnv } from "./prompt.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP = path.join(ROOT, "app");
@@ -52,8 +52,16 @@ async function main() {
   const name = account.settings?.dashboard?.display_name ?? account.business_profile?.name ?? account.id;
   console.log(`\nConnected to Stripe account “${name}” in ${live ? "LIVE mode (real money)" : "test mode (no real money)"}.`);
   if (!/loupe/i.test(name)) {
-    console.error(`✗ That's not the Loupe account. Pick Loupe at the top left in Stripe, copy its key, and rerun.`);
-    process.exit(1);
+    // A live key must be Loupe's own account. A test key may be a sandbox with its own name ("Default sandbox").
+    if (live) {
+      console.error(`✗ That's not the Loupe account. Pick Loupe at the top left in Stripe, copy its key, and rerun.`);
+      process.exit(1);
+    }
+    const sure = await ask(`  Is “${name}” Loupe's sandbox (test mode)? Type yes to carry on: `);
+    if (sure.trim().toLowerCase() !== "yes") {
+      console.error("\n✗ Stopped. Pick Loupe's sandbox in Stripe, copy its key, and rerun.");
+      process.exit(1);
+    }
   }
 
   // The monthly plans.
